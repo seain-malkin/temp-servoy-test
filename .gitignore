@@ -1,5 +1,7 @@
 # Servoy installer tarballs — stored in GitHub Artifacts, not the repo
-artificats/
+artifacts/
+
+_debug-logs/
 
 # Local environment variable files
 *.env.local

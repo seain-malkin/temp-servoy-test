@@ -61,7 +61,7 @@ ENV DB_SCHEMA=<none>
 ENV DB_SKIP_SYS_TABLES=false
 ENV MYSQL_DATABASE=appdb
 
-COPY artificats/servoy_linux.4046.tar.gz /tmp/servoy.tar.gz
+COPY artifacts/servoy_linux.4046.tar.gz /tmp/servoy.tar.gz
 RUN set -eux; \
     mkdir -p "${SERVOY_HOME}"; \
     tar -xzf /tmp/servoy.tar.gz -C "${SERVOY_HOME}"; \

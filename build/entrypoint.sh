@@ -14,23 +14,24 @@
 #   WAR_ADMIN_PASSWORD   Default admin password for WAR export (default: admin)
 #   WAR_PROPERTIES_TEMPLATE Path to a servoy.properties template (default: /config/servoy.properties)
 #   ENABLE_LOCAL_MYSQL   Start/configure local MySQL for this container (default: true)
-#   DB_HOST              Hostname for repository server DB (required when using template)
-#   DB_PORT              Port for repository server DB (default: 3306)
-#   DB_USER              Database user (required when using template)
-#   DB_PASSWORD          Database password (can be empty)
-#   REPOSITORY_DB_USER   Repository DB username override (defaults to DB_USER)
-#   REPOSITORY_DB_PASSWORD Repository DB password override (defaults to DB_PASSWORD)
+#   REPOSITORY_DB_HOST   Repository DB host (default: 127.0.0.1)
+#   REPOSITORY_DB_PORT   Repository DB port (default: 3306)
+#   REPOSITORY_DB_USER   Repository DB username (default: repository_user)
+#   REPOSITORY_DB_PASSWORD Repository DB password (default: empty)
+#   APP_DB_<N>_SERVER_NAME Additional application DB server alias (N=1,2,3...)
+#   APP_DB_<N>_HOST        Additional application DB host
+#   APP_DB_<N>_PORT        Additional application DB port (default: 3306)
+#   APP_DB_<N>_NAME        Additional application DB catalog/schema
+#   APP_DB_<N>_USER        Additional application DB user
+#   APP_DB_<N>_PASSWORD    Additional application DB password
 #   MYSQL_ROOT_PASSWORD  Root password to set after init (default: no password)
-#   MYSQL_DATABASE       Database to create on startup
-#   MYSQL_USER           App user to create (requires MYSQL_DATABASE)
-#   MYSQL_PASSWORD       Password for MYSQL_USER
 
 set -e
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 SOURCE_DIR="${SOURCE_DIR:-/workspace/src}"
 HEALTH_CHECK_URL="${HEALTH_CHECK_URL:-http://localhost:8080/}"
-HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-30}"
+HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-5}"
 HEALTH_CHECK_DELAY="${HEALTH_CHECK_DELAY:-5}"
 WAR_OUTPUT="/tmp/servoy-app.war"
 WAR_OUTPUT_DIR="$(dirname "${WAR_OUTPUT}")"
@@ -41,12 +42,6 @@ WAR_EXPORTER="${SERVOY_HOME}/developer/exporter/war_export.sh"
 WAR_ADMIN_USER="${WAR_ADMIN_USER:-admin}"
 WAR_ADMIN_PASSWORD="${WAR_ADMIN_PASSWORD:-admin}"
 ENABLE_LOCAL_MYSQL="${ENABLE_LOCAL_MYSQL:-true}"
-DB_HOST="${DB_HOST:-}"
-DB_PORT="${DB_PORT:-3306}"
-DB_NAME="${DB_NAME:-}"
-DB_USER="${DB_USER:-}"
-DB_PASSWORD="${DB_PASSWORD:-}"
-DB_SERVER_NAME="repository_server"
 DB_USE_SSL="${DB_USE_SSL:-false}"
 DB_ALLOW_PUBLIC_KEY_RETRIEVAL="${DB_ALLOW_PUBLIC_KEY_RETRIEVAL:-true}"
 DB_MAX_CONNECTIONS_ACTIVE="${DB_MAX_CONNECTIONS_ACTIVE:-30}"
@@ -59,12 +54,11 @@ DB_QUERY_PROCEDURES="${DB_QUERY_PROCEDURES:-false}"
 DB_SCHEMA="${DB_SCHEMA:-<none>}"
 DB_SKIP_SYS_TABLES="${DB_SKIP_SYS_TABLES:-false}"
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
-MYSQL_DATABASE="${MYSQL_DATABASE:-}"
-MYSQL_USER="${MYSQL_USER:-}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 REPOSITORY_DB_NAME="repository_server"
-REPOSITORY_DB_USER="${REPOSITORY_DB_USER:-${DB_USER:-}}"
-REPOSITORY_DB_PASSWORD="${REPOSITORY_DB_PASSWORD:-${DB_PASSWORD:-}}"
+REPOSITORY_DB_HOST="${REPOSITORY_DB_HOST:-127.0.0.1}"
+REPOSITORY_DB_PORT="${REPOSITORY_DB_PORT:-3306}"
+REPOSITORY_DB_USER="${REPOSITORY_DB_USER:-repository_user}"
+REPOSITORY_DB_PASSWORD="${REPOSITORY_DB_PASSWORD:-}"
 
 # Helper: run mysql as root, with or without a password
 mysql_root() {
@@ -86,34 +80,22 @@ require_env() {
 
 ensure_repository_server_mapping() {
   properties_file="$1"
+  repository_index="$2"
 
   if grep -Eq '^repository_server=' "${properties_file}" || grep -Eq '^server\.[0-9]+\.server[Nn]ame=repository_server$' "${properties_file}"; then
     return
   fi
 
+  require_env REPOSITORY_DB_HOST
+  require_env REPOSITORY_DB_USER
+
   echo "==> repository_server mapping not found, appending it to ${properties_file}."
 
-  max_server_index=$(awk -F'[.=]' '/^server\.[0-9]+\.server[Nn]ame=/{ if ($2 > max) max=$2 } END { if (max == "") print -1; else print max }' "${properties_file}")
-  repository_index=$((max_server_index + 1))
-
-  number_of_servers=$(awk -F= '/^ServerManager.numberOfServers=/{print $2; exit}' "${properties_file}")
-  if [ -z "${number_of_servers}" ]; then
-    number_of_servers=0
-  fi
-  required_number_of_servers=$((repository_index + 1))
-  if [ "${number_of_servers}" -lt "${required_number_of_servers}" ]; then
-    if grep -q '^ServerManager.numberOfServers=' "${properties_file}"; then
-      sed -i "s/^ServerManager.numberOfServers=.*/ServerManager.numberOfServers=${required_number_of_servers}/" "${properties_file}"
-    else
-      printf "ServerManager.numberOfServers=%s\n" "${required_number_of_servers}" >> "${properties_file}"
-    fi
-  fi
-
+  printf "\n" >> "${properties_file}"
   cat >> "${properties_file}" <<EOF
 repository_server=server.${repository_index}
 server.${repository_index}.serverName=repository_server
-server.${repository_index}.servername=repository_server
-server.${repository_index}.URL=jdbc:mysql://${DB_HOST}:${DB_PORT}/${REPOSITORY_DB_NAME}?useUnicode=true&characterEncoding=UTF-8&useSSL=${DB_USE_SSL}&allowPublicKeyRetrieval=${DB_ALLOW_PUBLIC_KEY_RETRIEVAL}
+server.${repository_index}.URL=jdbc:mysql://${REPOSITORY_DB_HOST}:${REPOSITORY_DB_PORT}/${REPOSITORY_DB_NAME}?useUnicode=true&characterEncoding=UTF-8&useSSL=${DB_USE_SSL}&allowPublicKeyRetrieval=${DB_ALLOW_PUBLIC_KEY_RETRIEVAL}
 server.${repository_index}.userName=${REPOSITORY_DB_USER}
 server.${repository_index}.user=${REPOSITORY_DB_USER}
 server.${repository_index}.password=${REPOSITORY_DB_PASSWORD}
@@ -130,6 +112,89 @@ server.${repository_index}.queryProcedures=${DB_QUERY_PROCEDURES}
 server.${repository_index}.schema=${DB_SCHEMA}
 server.${repository_index}.skipSysTables=${DB_SKIP_SYS_TABLES}
 EOF
+}
+
+append_mysql_server_mapping() {
+  properties_file="$1"
+  server_index="$2"
+  server_name="$3"
+  host="$4"
+  port="$5"
+  db_name="$6"
+  db_user="$7"
+  db_password="$8"
+
+  printf "\n" >> "${properties_file}"
+  cat >> "${properties_file}" <<EOF
+server.${server_index}.serverName=${server_name}
+server.${server_index}.URL=jdbc:mysql://${host}:${port}/${db_name}?useUnicode=true&characterEncoding=UTF-8&useSSL=${DB_USE_SSL}&allowPublicKeyRetrieval=${DB_ALLOW_PUBLIC_KEY_RETRIEVAL}
+server.${server_index}.userName=${db_user}
+server.${server_index}.user=${db_user}
+server.${server_index}.password=${db_password}
+server.${server_index}.driver=com.mysql.cj.jdbc.Driver
+server.${server_index}.catalog=${db_name}
+server.${server_index}.maxConnectionsActive=${DB_MAX_CONNECTIONS_ACTIVE}
+server.${server_index}.maxConnectionsIdle=${DB_MAX_CONNECTIONS_IDLE}
+server.${server_index}.maxPreparedStatementsIdle=${DB_MAX_PREPARED_STATEMENTS_IDLE}
+server.${server_index}.connectionValidationType=${DB_CONNECTION_VALIDATION_TYPE}
+server.${server_index}.validationQuery=select 1
+server.${server_index}.clientOnlyConnections=${DB_CLIENT_ONLY_CONNECTIONS}
+server.${server_index}.prefixTables=${DB_PREFIX_TABLES}
+server.${server_index}.queryProcedures=${DB_QUERY_PROCEDURES}
+server.${server_index}.schema=${DB_SCHEMA}
+server.${server_index}.skipSysTables=${DB_SKIP_SYS_TABLES}
+EOF
+}
+
+append_application_server_mappings() {
+  properties_file="$1"
+  next_index="$2"
+
+  app_prefixes=$(env | awk -F= '/^APP_DB_[0-9]+_SERVER_NAME=/{print $1}' | sed 's/_SERVER_NAME$//' | sort -t_ -k3,3n)
+  if [ -z "${app_prefixes}" ]; then
+    echo "ERROR: At least one application DB is required (APP_DB_1_SERVER_NAME, APP_DB_1_HOST, APP_DB_1_NAME, APP_DB_1_USER)." >&2
+    exit 1
+  fi
+
+  for prefix in ${app_prefixes}; do
+    eval "app_server_name=\${${prefix}_SERVER_NAME:-}"
+    eval "app_host=\${${prefix}_HOST:-}"
+    eval "app_port=\${${prefix}_PORT:-3306}"
+    eval "app_name=\${${prefix}_NAME:-}"
+    eval "app_user=\${${prefix}_USER:-}"
+    eval "app_password=\${${prefix}_PASSWORD:-}"
+
+    if [ -z "${app_server_name}" ] || [ -z "${app_host}" ] || [ -z "${app_name}" ] || [ -z "${app_user}" ]; then
+      echo "ERROR: ${prefix}_SERVER_NAME, ${prefix}_HOST, ${prefix}_NAME and ${prefix}_USER are required." >&2
+      exit 1
+    fi
+
+    append_mysql_server_mapping "${properties_file}" "${next_index}" "${app_server_name}" "${app_host}" "${app_port}" "${app_name}" "${app_user}" "${app_password}"
+    next_index=$((next_index + 1))
+  done
+
+  echo "${next_index}"
+}
+
+max_server_index_from_properties() {
+  properties_file="$1"
+  max_server_index=$(grep -Eo '^server\.[0-9]+\.server[Nn]ame=' "${properties_file}" | sed -E 's/^server\.([0-9]+)\..*/\1/' | sort -n | tail -1)
+  if [ -z "${max_server_index}" ]; then
+    max_server_index=-1
+  fi
+  echo "${max_server_index}"
+}
+
+sync_server_count() {
+  properties_file="$1"
+  max_server_index=$(max_server_index_from_properties "${properties_file}")
+  number_of_servers=$((max_server_index + 1))
+
+  if grep -q '^ServerManager.numberOfServers=' "${properties_file}"; then
+    sed -i "s/^ServerManager.numberOfServers=.*/ServerManager.numberOfServers=${number_of_servers}/" "${properties_file}"
+  else
+    printf "ServerManager.numberOfServers=%s\n" "${number_of_servers}" >> "${properties_file}"
+  fi
 }
 
 # ── Validate required vars ────────────────────────────────────────────────────
@@ -178,23 +243,8 @@ if [ "${ENABLE_LOCAL_MYSQL}" = "true" ]; then
     mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';"
   fi
 
-  if [ -n "${MYSQL_DATABASE}" ]; then
-    echo "==> Creating database '${MYSQL_DATABASE}'..."
-    mysql_root -e "CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;"
-  else
-    echo "==> MYSQL_DATABASE not set; skipping database creation."
-  fi
-
   echo "==> Ensuring repository database '${REPOSITORY_DB_NAME}' exists..."
   mysql_root -e "CREATE DATABASE IF NOT EXISTS \`${REPOSITORY_DB_NAME}\`;"
-
-  if [ -n "${MYSQL_USER}" ] && [ -n "${MYSQL_PASSWORD}" ]; then
-    echo "==> Creating MySQL user '${MYSQL_USER}'..."
-    mysql_root \
-      -e "CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';" \
-      -e "GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE:-*}\`.* TO '${MYSQL_USER}'@'%';" \
-      -e "FLUSH PRIVILEGES;"
-  fi
 
   if [ -n "${REPOSITORY_DB_USER}" ]; then
     echo "==> Ensuring repository MySQL user '${REPOSITORY_DB_USER}'..."
@@ -207,16 +257,9 @@ if [ "${ENABLE_LOCAL_MYSQL}" = "true" ]; then
   echo "==> Verifying MySQL query readiness..."
   i=0
   while [ "${i}" -lt 30 ]; do
-    if [ -n "${MYSQL_DATABASE}" ]; then
-      if mysql_root -e "USE \`${MYSQL_DATABASE}\`; SELECT 1;" >/dev/null 2>&1; then
-        echo "==> MySQL is active and database '${MYSQL_DATABASE}' is queryable."
-        break
-      fi
-    else
-      if mysql_root -e "SELECT 1;" >/dev/null 2>&1; then
-        echo "==> MySQL is active and queryable."
-        break
-      fi
+    if mysql_root -e "USE \`${REPOSITORY_DB_NAME}\`; SELECT 1;" >/dev/null 2>&1; then
+      echo "==> MySQL is active and repository database '${REPOSITORY_DB_NAME}' is queryable."
+      break
     fi
     i=$((i + 1))
     echo "    Attempt ${i}/30 — query check failed, waiting 2s..."
@@ -235,16 +278,12 @@ fi
 
 echo "==> Preparing WAR properties from template..."
 if [ -f "${WAR_PROPERTIES_TEMPLATE}" ]; then
-  DB_NAME="${REPOSITORY_DB_NAME}"
-  DB_USER="${REPOSITORY_DB_USER:-${DB_USER:-}}"
-  DB_PASSWORD="${REPOSITORY_DB_PASSWORD:-${DB_PASSWORD:-}}"
-  if grep -q '\${DB_' "${WAR_PROPERTIES_TEMPLATE}"; then
-    require_env DB_HOST
-    require_env DB_USER
-  fi
-  envsubst '${DB_SERVER_NAME} ${DB_HOST} ${DB_PORT} ${DB_NAME} ${DB_USER} ${DB_PASSWORD} ${DB_USE_SSL} ${DB_ALLOW_PUBLIC_KEY_RETRIEVAL} ${DB_MAX_CONNECTIONS_ACTIVE} ${DB_MAX_CONNECTIONS_IDLE} ${DB_MAX_PREPARED_STATEMENTS_IDLE} ${DB_CONNECTION_VALIDATION_TYPE} ${DB_CLIENT_ONLY_CONNECTIONS} ${DB_PREFIX_TABLES} ${DB_QUERY_PROCEDURES} ${DB_SCHEMA} ${DB_SKIP_SYS_TABLES}' \
-    < "${WAR_PROPERTIES_TEMPLATE}" > "${WAR_PROPERTIES_FILE}"
-  ensure_repository_server_mapping "${WAR_PROPERTIES_FILE}"
+  require_env REPOSITORY_DB_HOST
+  require_env REPOSITORY_DB_USER
+  cp "${WAR_PROPERTIES_TEMPLATE}" "${WAR_PROPERTIES_FILE}"
+  next_server_index=$(append_application_server_mappings "${WAR_PROPERTIES_FILE}" 0)
+  ensure_repository_server_mapping "${WAR_PROPERTIES_FILE}" "${next_server_index}"
+  sync_server_count "${WAR_PROPERTIES_FILE}"
 else
   cp "${SERVOY_HOME}/application_server/servoy.properties" "${WAR_PROPERTIES_FILE}"
 fi
