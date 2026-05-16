@@ -1,27 +1,27 @@
 {
-  "name": "servoy-test",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prisma:migrate:local": "prisma migrate dev --config prisma.appdb.config.ts --schema prisma/appdb/schema.prisma",
-    "prisma:migrate:appdb": "prisma migrate deploy --config prisma.appdb.config.ts --schema prisma/appdb/schema.prisma",
-    "prisma:validate:appdb": "prisma validate --config prisma.appdb.config.ts --schema prisma/appdb/schema.prisma"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/seain-malkin/temp-servoy-test.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/seain-malkin/temp-servoy-test/issues"
-  },
-  "homepage": "https://github.com/seain-malkin/temp-servoy-test#readme",
-  "dependencies": {
-    "prisma": "^7.8.0"
-  }
+    "name": "servoy-test",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "prisma:migrate:appdb:local": "prisma migrate dev --config prisma.appdb.config.ts",
+        "prisma:migrate:appdb": "prisma migrate deploy --config prisma.appdb.config.ts",
+        "prisma:validate:appdb": "prisma validate --config prisma.appdb.config.ts"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/seain-malkin/temp-servoy-test.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "bugs": {
+        "url": "https://github.com/seain-malkin/temp-servoy-test/issues"
+    },
+    "homepage": "https://github.com/seain-malkin/temp-servoy-test#readme",
+    "dependencies": {
+        "prisma": "^7.8.0"
+    }
 }
