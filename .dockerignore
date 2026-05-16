@@ -1,0 +1,22 @@
+# Dependencies and build artifacts
+node_modules/
+npm-debug.log*
+
+# Exclude the artifacts folder from the Docker build context EXCEPT for
+# the Servoy tarball (which is explicitly COPYed in the Dockerfile).
+# If you want to exclude the tarball too (e.g. to pull it from a registry
+# instead), uncomment the next line and update the Dockerfile accordingly.
+# artificats/
+
+# Git internals — not needed inside the image
+.git/
+.gitignore
+
+# IDE / OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Session / plan artifacts
+.copilot/
