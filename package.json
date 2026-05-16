@@ -7,6 +7,7 @@
         "test": "echo \"Error: no test specified\" && exit 1",
         "prisma:migrate:appdb:local": "prisma migrate dev --config prisma.appdb.config.ts",
         "prisma:migrate:appdb": "prisma migrate deploy --config prisma.appdb.config.ts",
+        "prisma:status:appdb": "prisma migrate status --config prisma.appdb.config.ts",
         "prisma:validate:appdb": "prisma validate --config prisma.appdb.config.ts"
     },
     "repository": {
