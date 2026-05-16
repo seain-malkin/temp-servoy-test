@@ -16,6 +16,7 @@ model users {
   email         String    @unique(map: "users_unique") @db.VarChar(255)
   first_name    String?   @db.VarChar(100)
   last_name     String    @db.VarChar(100)
+  username      String?   @unique(map: "username_unique") @db.VarChar(255)
   password_hash String? @db.VarChar(255)
   last_auth_date DateTime? @db.DateTime(0)
   created_date  DateTime  @default(now()) @db.DateTime(0)
