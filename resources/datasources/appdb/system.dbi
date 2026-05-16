@@ -1,0 +1,13 @@
+columns:[
+{
+allowNull:false,
+autoEnterSubType:0,
+autoEnterType:2,
+creationOrderIndex:-1,
+dataType:4,
+flags:1,
+name:"system_id"
+}
+],
+name:"system",
+tableType:0
