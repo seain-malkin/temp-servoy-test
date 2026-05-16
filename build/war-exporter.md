@@ -17,7 +17,7 @@ war_export.sh \
 
 ### How this repo runs it
 
-`docker/entrypoint.sh` currently calls the exporter with:
+`build/entrypoint.sh` currently calls the exporter with:
 
 ```sh
 -s "${PROJECT_NAME}" -o "/tmp" -data "${WORKSPACE_DIR}" -warFileName "servoy-app" \

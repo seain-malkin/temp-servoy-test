@@ -31,7 +31,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/Dockerfile', 'artificats/**') }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('build/docker/test-e2e/Dockerfile', 'artificats/**') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
 
@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: docker/Dockerfile
+          file: build/docker/test-e2e/Dockerfile
           tags: servoy-test:ci
           load: true
           cache-from: type=local,src=/tmp/.buildx-cache

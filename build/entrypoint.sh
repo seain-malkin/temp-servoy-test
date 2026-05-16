@@ -14,6 +14,7 @@
 #   WAR_EXTRA_ARGS       Additional arguments to pass to war_export.sh
 #   WAR_ADMIN_USER       Default admin username for WAR export (default: admin)
 #   WAR_ADMIN_PASSWORD   Default admin password for WAR export (default: admin)
+#   WAR_PROPERTIES_TEMPLATE Path to a servoy.properties template (default: /config/servoy.properties)
 #   WORKSPACE_DIR        Where to clone the repo (default: /workspace)
 #   MYSQL_ROOT_PASSWORD  Root password to set after init (default: no password)
 #   MYSQL_DATABASE       Database to create on startup
@@ -31,7 +32,8 @@ HEALTH_CHECK_DELAY="${HEALTH_CHECK_DELAY:-5}"
 WAR_OUTPUT="/tmp/servoy-app.war"
 WAR_OUTPUT_DIR="$(dirname "${WAR_OUTPUT}")"
 WAR_FILE_BASENAME="$(basename "${WAR_OUTPUT}" .war)"
-WAR_PROPERTIES_FILE="/tmp/servoy-war.properties"
+WAR_PROPERTIES_FILE="/tmp/servoy.properties"
+WAR_PROPERTIES_TEMPLATE="${WAR_PROPERTIES_TEMPLATE:-/config/servoy.properties}"
 WAR_EXPORTER="${SERVOY_HOME}/developer/exporter/war_export.sh"
 WAR_ADMIN_USER="${WAR_ADMIN_USER:-admin}"
 WAR_ADMIN_PASSWORD="${WAR_ADMIN_PASSWORD:-admin}"
@@ -39,7 +41,6 @@ MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-}"
 MYSQL_USER="${MYSQL_USER:-}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
-REPOSITORY_DB_NAME="${MYSQL_DATABASE:-repository_server}"
 
 # Helper: run mysql as root, with or without a password
 mysql_root() {
@@ -95,8 +96,12 @@ if [ -n "${MYSQL_ROOT_PASSWORD}" ]; then
   mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';"
 fi
 
-echo "==> Creating database '${REPOSITORY_DB_NAME}'..."
-mysql_root -e "CREATE DATABASE IF NOT EXISTS \`${REPOSITORY_DB_NAME}\`;"
+if [ -n "${MYSQL_DATABASE}" ]; then
+  echo "==> Creating database '${MYSQL_DATABASE}'..."
+  mysql_root -e "CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;"
+else
+  echo "==> MYSQL_DATABASE not set; skipping database creation."
+fi
 
 if [ -n "${MYSQL_USER}" ] && [ -n "${MYSQL_PASSWORD}" ]; then
   echo "==> Creating MySQL user '${MYSQL_USER}'..."
@@ -132,32 +137,12 @@ if [ "${i}" -ge 30 ]; then
   exit 1
 fi
 
-if [ -n "${MYSQL_USER}" ]; then
-  REPOSITORY_DB_USER="${MYSQL_USER}"
-  REPOSITORY_DB_PASSWORD="${MYSQL_PASSWORD:-}"
+echo "==> Preparing WAR properties from template..."
+if [ -f "${WAR_PROPERTIES_TEMPLATE}" ]; then
+  cp "${WAR_PROPERTIES_TEMPLATE}" "${WAR_PROPERTIES_FILE}"
 else
-  REPOSITORY_DB_USER="root"
-  REPOSITORY_DB_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
+  cp "${SERVOY_HOME}/application_server/servoy.properties" "${WAR_PROPERTIES_FILE}"
 fi
-
-echo "==> Generating WAR properties with repository_server mapping..."
-cp "${SERVOY_HOME}/application_server/servoy.properties" "${WAR_PROPERTIES_FILE}"
-cat >> "${WAR_PROPERTIES_FILE}" <<EOF
-
-ServerManager.numberOfServers=1
-repository_server=server.0
-server.0.serverName=repository_server
-server.0.servername=repository_server
-server.0.URL=jdbc:mysql://127.0.0.1:3306/${REPOSITORY_DB_NAME}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true
-server.0.userName=${REPOSITORY_DB_USER}
-server.0.user=${REPOSITORY_DB_USER}
-server.0.password=${REPOSITORY_DB_PASSWORD}
-server.0.driver=com.mysql.cj.jdbc.Driver
-server.0.catalog=${REPOSITORY_DB_NAME}
-server.0.maxActive=30
-server.0.validationQuery=select 1
-server.0.connectionValidationType=0
-EOF
 
 echo "==> Cloning ${REPO_URL} (branch: ${REPO_BRANCH})..."
 
