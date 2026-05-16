@@ -24,6 +24,10 @@
 #   APP_DB_<N>_NAME        Additional application DB catalog/schema
 #   APP_DB_<N>_USER        Additional application DB user
 #   APP_DB_<N>_PASSWORD    Additional application DB password
+#   APP_DB_<N>_DATABASE_URL Optional full Prisma DATABASE_URL override for app DB N
+#   ENABLE_PRISMA_MIGRATIONS Run Prisma migrations before WAR export (default: true)
+#   PRISMA_APP_DB_INDEX    APP_DB index to migrate before WAR export (default: 1)
+#   PRISMA_WORKDIR         Workspace containing package.json/prisma files (default: /workspace)
 #   MYSQL_ROOT_PASSWORD  Root password to set after init (default: no password)
 
 set -e
@@ -54,6 +58,9 @@ DB_QUERY_PROCEDURES="${DB_QUERY_PROCEDURES:-false}"
 DB_SCHEMA="${DB_SCHEMA:-<none>}"
 DB_SKIP_SYS_TABLES="${DB_SKIP_SYS_TABLES:-false}"
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
+ENABLE_PRISMA_MIGRATIONS="${ENABLE_PRISMA_MIGRATIONS:-true}"
+PRISMA_APP_DB_INDEX="${PRISMA_APP_DB_INDEX:-1}"
+PRISMA_WORKDIR="${PRISMA_WORKDIR:-/workspace}"
 REPOSITORY_DB_NAME="repository_server"
 REPOSITORY_DB_HOST="${REPOSITORY_DB_HOST:-127.0.0.1}"
 REPOSITORY_DB_PORT="${REPOSITORY_DB_PORT:-3306}"
@@ -197,6 +204,61 @@ sync_server_count() {
   fi
 }
 
+run_prisma_migrations() {
+  if [ "${ENABLE_PRISMA_MIGRATIONS}" != "true" ]; then
+    echo "==> ENABLE_PRISMA_MIGRATIONS=false, skipping Prisma migrations."
+    return
+  fi
+
+  prisma_bin="${PRISMA_WORKDIR}/node_modules/.bin/prisma"
+  if [ ! -x "${prisma_bin}" ]; then
+    echo "ERROR: Prisma CLI not found at '${prisma_bin}'." >&2
+    exit 1
+  fi
+
+  app_prefix="APP_DB_${PRISMA_APP_DB_INDEX}"
+  eval "app_server_name=\${${app_prefix}_SERVER_NAME:-}"
+  eval "app_host=\${${app_prefix}_HOST:-}"
+  eval "app_port=\${${app_prefix}_PORT:-3306}"
+  eval "app_name=\${${app_prefix}_NAME:-}"
+  eval "app_user=\${${app_prefix}_USER:-}"
+  eval "app_password=\${${app_prefix}_PASSWORD:-}"
+  eval "app_database_url=\${${app_prefix}_DATABASE_URL:-}"
+
+  if [ -z "${app_server_name}" ] || [ -z "${app_host}" ] || [ -z "${app_name}" ] || [ -z "${app_user}" ]; then
+    echo "ERROR: ${app_prefix}_SERVER_NAME, ${app_prefix}_HOST, ${app_prefix}_NAME and ${app_prefix}_USER are required for Prisma migration." >&2
+    exit 1
+  fi
+
+  prisma_schema_file="${PRISMA_WORKDIR}/prisma/${app_server_name}/schema.prisma"
+  if [ ! -f "${prisma_schema_file}" ]; then
+    echo "ERROR: Prisma schema file not found: ${prisma_schema_file}" >&2
+    exit 1
+  fi
+
+  if [ "${ENABLE_LOCAL_MYSQL}" = "true" ]; then
+    echo "==> Ensuring Prisma app database '${app_name}' exists..."
+    mysql_root -e "CREATE DATABASE IF NOT EXISTS \`${app_name}\`;"
+
+    if [ -n "${app_user}" ]; then
+      echo "==> Ensuring Prisma app database user '${app_user}'..."
+      mysql_root \
+        -e "CREATE USER IF NOT EXISTS '${app_user}'@'%' IDENTIFIED BY '${app_password}';" \
+        -e "GRANT ALL PRIVILEGES ON \`${app_name}\`.* TO '${app_user}'@'%';" \
+        -e "FLUSH PRIVILEGES;"
+    fi
+  fi
+
+  if [ -n "${app_database_url}" ]; then
+    database_url="${app_database_url}"
+  else
+    database_url="mysql://${app_user}:${app_password}@${app_host}:${app_port}/${app_name}"
+  fi
+
+  echo "==> Applying Prisma migrations for '${app_server_name}'..."
+  DATABASE_URL="${database_url}" "${prisma_bin}" migrate deploy --schema "${prisma_schema_file}"
+}
+
 # ── Validate required vars ────────────────────────────────────────────────────
 if [ -z "${PROJECT_NAME}" ]; then
   echo "ERROR: PROJECT_NAME is required." >&2
@@ -275,6 +337,8 @@ if [ "${ENABLE_LOCAL_MYSQL}" = "true" ]; then
 else
   echo "==> ENABLE_LOCAL_MYSQL=false, skipping local MySQL startup."
 fi
+
+run_prisma_migrations
 
 echo "==> Preparing WAR properties from template..."
 if [ -f "${WAR_PROPERTIES_TEMPLATE}" ]; then

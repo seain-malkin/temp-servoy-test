@@ -11,6 +11,7 @@
 #     servoy-test-e2e
 
 FROM debian:bookworm-slim
+ARG NODE_VERSION=22.16.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-17-jdk-headless \
@@ -18,8 +19,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         ca-certificates \
         gnupg \
+        xz-utils \
         gettext-base \
     && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "${arch}" in \
+      amd64) node_arch="x64" ;; \
+      arm64) node_arch="arm64" ;; \
+      *) echo "Unsupported architecture: ${arch}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz"; \
+    tar -xJf "node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" -C /usr/local --strip-components=1 --no-same-owner; \
+    rm "node-v${NODE_VERSION}-linux-${node_arch}.tar.xz"; \
+    node --version; \
+    npm --version
 
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
@@ -42,6 +57,7 @@ RUN sed -i 's/\r$//' "${CATALINA_HOME}/bin/setenv.sh" && chmod +x "${CATALINA_HO
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 ENV SERVOY_HOME=/opt/servoy
 ENV SOURCE_DIR=/workspace/src
+ENV PRISMA_WORKDIR=/workspace
 ENV ENABLE_LOCAL_MYSQL=true
 ENV DB_HOST=127.0.0.1
 ENV DB_PORT=3306
@@ -69,6 +85,12 @@ RUN set -eux; \
     find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;
 
 COPY src "${SOURCE_DIR}"
+COPY package.json package-lock.json "${PRISMA_WORKDIR}/"
+COPY prisma "${PRISMA_WORKDIR}/prisma"
+
+RUN set -eux; \
+    cd "${PRISMA_WORKDIR}"; \
+    npm ci
 
 # Environment-specific Servoy WAR-export config template.
 COPY build/docker/test-e2e/servoy.properties /config/servoy.properties

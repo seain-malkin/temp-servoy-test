@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:migrate:appdb": "prisma migrate deploy --schema prisma/appdb/schema.prisma",
+    "prisma:validate:appdb": "prisma validate --schema prisma/appdb/schema.prisma"
   },
   "repository": {
     "type": "git",
@@ -17,5 +19,8 @@
   "bugs": {
     "url": "https://github.com/seain-malkin/temp-servoy-test/issues"
   },
-  "homepage": "https://github.com/seain-malkin/temp-servoy-test#readme"
+  "homepage": "https://github.com/seain-malkin/temp-servoy-test#readme",
+  "dependencies": {
+    "prisma": "^7.8.0"
+  }
 }
