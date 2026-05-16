@@ -7,10 +7,7 @@
 #
 # Run:
 #   docker run --rm \
-#     -e REPO_URL=https://github.com/org/repo \
-#     -e REPO_BRANCH=main \
 #     -e PROJECT_NAME=MyServoyApp \
-#     [-e GITHUB_TOKEN=ghp_xxx]        # only needed for private repos
 #     [-e MYSQL_ROOT_PASSWORD=secret]  # default: no root password
 #     [-e MYSQL_DATABASE=mydb]         # creates DB on startup
 #     [-e MYSQL_USER=appuser]          # creates app user (requires MYSQL_DATABASE)
@@ -24,9 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-17-jdk-headless \
         curl \
         wget \
-        git \
         ca-certificates \
         gnupg \
+        gettext-base \
     && rm -rf /var/lib/apt/lists/*
 
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
@@ -50,6 +47,25 @@ COPY build/tomcat/setenv.sh "${CATALINA_HOME}/bin/setenv.sh"
 RUN sed -i 's/\r$//' "${CATALINA_HOME}/bin/setenv.sh" && chmod +x "${CATALINA_HOME}/bin/setenv.sh"
 
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
+ENV SOURCE_DIR=/workspace/src
+ENV ENABLE_LOCAL_MYSQL=true
+ENV DB_HOST=127.0.0.1
+ENV DB_PORT=3306
+ENV DB_NAME=repository_server
+ENV DB_USER=root
+ENV DB_PASSWORD=
+ENV DB_SERVER_NAME=repository_server
+ENV DB_USE_SSL=false
+ENV DB_ALLOW_PUBLIC_KEY_RETRIEVAL=true
+ENV DB_MAX_CONNECTIONS_ACTIVE=30
+ENV DB_MAX_CONNECTIONS_IDLE=10
+ENV DB_MAX_PREPARED_STATEMENTS_IDLE=100
+ENV DB_CONNECTION_VALIDATION_TYPE=0
+ENV DB_CLIENT_ONLY_CONNECTIONS=false
+ENV DB_PREFIX_TABLES=false
+ENV DB_QUERY_PROCEDURES=false
+ENV DB_SCHEMA=<none>
+ENV DB_SKIP_SYS_TABLES=false
 
 # ── Servoy ───────────────────────────────────────────────────────────────────
 ENV SERVOY_HOME=/opt/servoy
@@ -60,6 +76,8 @@ RUN set -eux; \
     tar -xzf /tmp/servoy.tar.gz -C "${SERVOY_HOME}"; \
     rm /tmp/servoy.tar.gz; \
     find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;
+
+COPY src "${SOURCE_DIR}"
 
 # ── MySQL 8.4 LTS ────────────────────────────────────────────────────────────
 RUN set -eux; \

@@ -20,7 +20,7 @@ war_export.sh \
 `build/entrypoint.sh` currently calls the exporter with:
 
 ```sh
--s "${PROJECT_NAME}" -o "/tmp" -data "${WORKSPACE_DIR}" -warFileName "servoy-app" \
+-s "${PROJECT_NAME}" -o "/tmp" -data "${SOURCE_DIR}" -warFileName "servoy-app" \
 -as "${SERVOY_HOME}/application_server" -pluginLocations "${SERVOY_HOME}/developer/plugins" \
 -defaultAdminUser "${WAR_ADMIN_USER:-admin}" -defaultAdminPassword "${WAR_ADMIN_PASSWORD:-admin}"
 ```
@@ -29,7 +29,6 @@ You can override export admin credentials via env vars:
 
 ```sh
 docker run --rm \
-  -e REPO_URL=https://github.com/org/servoy-project \
   -e PROJECT_NAME=MySolution \
   -e WAR_ADMIN_USER=admin \
   -e WAR_ADMIN_PASSWORD=admin \

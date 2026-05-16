@@ -7,10 +7,7 @@
 #
 # Run:
 #   docker run --rm \
-#     -e REPO_URL=https://github.com/org/repo \
-#     -e REPO_BRANCH=main \
 #     -e PROJECT_NAME=MyServoyApp \
-#     [-e GITHUB_TOKEN=ghp_xxx] \
 #     servoy-test-e2e
 
 FROM debian:bookworm-slim
@@ -19,9 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-17-jdk-headless \
         curl \
         wget \
-        git \
         ca-certificates \
         gnupg \
+        gettext-base \
     && rm -rf /var/lib/apt/lists/*
 
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
@@ -44,6 +41,25 @@ RUN sed -i 's/\r$//' "${CATALINA_HOME}/bin/setenv.sh" && chmod +x "${CATALINA_HO
 
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 ENV SERVOY_HOME=/opt/servoy
+ENV SOURCE_DIR=/workspace/src
+ENV ENABLE_LOCAL_MYSQL=true
+ENV DB_HOST=127.0.0.1
+ENV DB_PORT=3306
+ENV DB_NAME=appdb
+ENV DB_USER=root
+ENV DB_SERVER_NAME=repository_server
+ENV DB_USE_SSL=false
+ENV DB_ALLOW_PUBLIC_KEY_RETRIEVAL=true
+ENV DB_MAX_CONNECTIONS_ACTIVE=30
+ENV DB_MAX_CONNECTIONS_IDLE=10
+ENV DB_MAX_PREPARED_STATEMENTS_IDLE=100
+ENV DB_CONNECTION_VALIDATION_TYPE=0
+ENV DB_CLIENT_ONLY_CONNECTIONS=false
+ENV DB_PREFIX_TABLES=false
+ENV DB_QUERY_PROCEDURES=false
+ENV DB_SCHEMA=<none>
+ENV DB_SKIP_SYS_TABLES=false
+ENV MYSQL_DATABASE=appdb
 
 COPY artificats/servoy_linux.4046.tar.gz /tmp/servoy.tar.gz
 RUN set -eux; \
@@ -51,6 +67,8 @@ RUN set -eux; \
     tar -xzf /tmp/servoy.tar.gz -C "${SERVOY_HOME}"; \
     rm /tmp/servoy.tar.gz; \
     find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;
+
+COPY src "${SOURCE_DIR}"
 
 # Environment-specific Servoy WAR-export config template.
 COPY build/docker/test-e2e/servoy.properties /config/servoy.properties
