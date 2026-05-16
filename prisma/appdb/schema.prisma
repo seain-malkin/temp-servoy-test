@@ -12,10 +12,11 @@ model system {
 }
 
 model users {
-  user_id      Int      @id @default(autoincrement())
-  email        String   @unique(map: "users_unique") @db.VarChar(255)
-  first_name   String?  @db.VarChar(100)
-  last_name    String   @db.VarChar(100)
+  user_id       Int       @id @default(autoincrement())
+  email         String    @unique(map: "users_unique") @db.VarChar(255)
+  first_name    String?   @db.VarChar(100)
+  last_name     String    @db.VarChar(100)
   password_hash String? @db.VarChar(255)
-  created_date DateTime @default(now()) @db.DateTime(0)
+  last_auth_date DateTime? @db.DateTime(0)
+  created_date  DateTime  @default(now()) @db.DateTime(0)
 }
