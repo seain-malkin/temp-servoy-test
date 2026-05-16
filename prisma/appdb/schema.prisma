@@ -1,8 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/appdb-client"
+}
+
 datasource db {
   provider = "mysql"
 }
 
-generator client {
-  provider = "prisma-client-js"
-  output   = "../../generated/appdb-client"
+model system {
+  system_id Int @id @default(autoincrement())
+}
+
+model users {
+  user_id      Int      @id @default(autoincrement())
+  email        String   @unique(map: "users_unique") @db.VarChar(255)
+  first_name   String?  @db.VarChar(100)
+  last_name    String   @db.VarChar(100)
+  created_date DateTime @default(now()) @db.DateTime(0)
 }
