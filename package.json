@@ -5,8 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prisma:migrate:appdb": "prisma migrate deploy --schema prisma/appdb/schema.prisma",
-    "prisma:validate:appdb": "prisma validate --schema prisma/appdb/schema.prisma"
+    "prisma:migrate:local": "prisma migrate dev --config prisma.appdb.config.ts --schema prisma/appdb/schema.prisma",
+    "prisma:migrate:appdb": "prisma migrate deploy --config prisma.appdb.config.ts --schema prisma/appdb/schema.prisma",
+    "prisma:validate:appdb": "prisma validate --config prisma.appdb.config.ts --schema prisma/appdb/schema.prisma"
   },
   "repository": {
     "type": "git",

@@ -256,7 +256,7 @@ run_prisma_migrations() {
   fi
 
   echo "==> Applying Prisma migrations for '${app_server_name}'..."
-  DATABASE_URL="${database_url}" "${prisma_bin}" migrate deploy --schema "${prisma_schema_file}"
+  APPDB_DATABASE_URL="${database_url}" "${prisma_bin}" migrate deploy --config "${PRISMA_WORKDIR}/prisma.appdb.config.ts" --schema "${prisma_schema_file}"
 }
 
 # ── Validate required vars ────────────────────────────────────────────────────

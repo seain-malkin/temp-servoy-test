@@ -81,7 +81,7 @@ RUN set -eux; \
     find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;
 
 COPY src "${SOURCE_DIR}"
-COPY package.json package-lock.json "${PRISMA_WORKDIR}/"
+COPY package.json package-lock.json prisma.appdb.config.ts "${PRISMA_WORKDIR}/"
 COPY prisma "${PRISMA_WORKDIR}/prisma"
 
 RUN set -eux; \
