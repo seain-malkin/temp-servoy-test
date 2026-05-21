@@ -56,6 +56,8 @@ jobs:
           REPO_URL: ${{ vars.SERVOY_PROJECT_REPO_URL }}
           REPO_BRANCH: ${{ github.event.inputs.repo_branch || github.ref_name }}
           PROJECT_NAME: ${{ vars.SERVOY_PROJECT_NAME }}
+          ENABLE_UNIT_TESTS: ${{ vars.SERVOY_RUN_UNIT_TESTS || 'false' }}
+          UNIT_TEST_SOLUTION: ${{ vars.SERVOY_UNIT_TEST_SOLUTION || 'servoy_unit_tests' }}
           # GITHUB_TOKEN is only needed if SERVOY_PROJECT_REPO_URL points to a private repo.
           # Store as a secret named SERVOY_REPO_TOKEN to keep it separate from the default token.
           GITHUB_TOKEN: ${{ secrets.SERVOY_REPO_TOKEN }}
@@ -64,6 +66,8 @@ jobs:
             -e REPO_URL \
             -e REPO_BRANCH \
             -e PROJECT_NAME \
+            -e ENABLE_UNIT_TESTS \
+            -e UNIT_TEST_SOLUTION \
             -e GITHUB_TOKEN \
             servoy-test:ci
 

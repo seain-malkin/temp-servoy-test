@@ -29,6 +29,13 @@
 #   PRISMA_APP_DB_INDEX    APP_DB index to migrate before WAR export (default: 1)
 #   PRISMA_WORKDIR         Workspace containing package.json/prisma files (default: /workspace)
 #   MYSQL_ROOT_PASSWORD  Root password to set after init (default: no password)
+#   ENABLE_UNIT_TESTS      Run JSUnit tests before WAR export (default: false)
+#   UNIT_TEST_SOLUTION     Test entry solution to export and execute (default: servoy_unit_tests)
+#   UNIT_TEST_EXPORT_DIR   Folder for temporary .servoy exports used by JSUnit runner (default: /tmp/exportedSolutions)
+#   UNIT_TEST_TIMEOUT_SECONDS Solution load timeout for JSUnit runner in seconds (default: 300)
+#   UNIT_TEST_JAVA_OPTS    Additional JVM args for JSUnit runner invocation
+#   UNIT_TEST_EXPORT_EXTRA_ARGS Additional arguments passed to export.sh before tests
+#   UNIT_TEST_PROPERTIES_FILE Path to test-only Servoy properties file (default: /tmp/servoy-tests.properties)
 
 set -e
 
@@ -43,6 +50,7 @@ WAR_FILE_BASENAME="$(basename "${WAR_OUTPUT}" .war)"
 WAR_PROPERTIES_FILE="/tmp/servoy.properties"
 WAR_PROPERTIES_TEMPLATE="${WAR_PROPERTIES_TEMPLATE:-/config/servoy.properties}"
 WAR_EXPORTER="${SERVOY_HOME}/developer/exporter/war_export.sh"
+SOLUTION_EXPORTER="${SERVOY_HOME}/developer/exporter/export.sh"
 WAR_ADMIN_USER="${WAR_ADMIN_USER:-admin}"
 WAR_ADMIN_PASSWORD="${WAR_ADMIN_PASSWORD:-admin}"
 ENABLE_LOCAL_MYSQL="${ENABLE_LOCAL_MYSQL:-true}"
@@ -62,6 +70,11 @@ ENABLE_PRISMA_MIGRATIONS="${ENABLE_PRISMA_MIGRATIONS:-true}"
 PRISMA_APP_DB_INDEX="${PRISMA_APP_DB_INDEX:-1}"
 PRISMA_WORKDIR="${PRISMA_WORKDIR:-/workspace}"
 SERVOY_USER_HOME="${SERVOY_USER_HOME:-/var/servoy-home}"
+ENABLE_UNIT_TESTS="${ENABLE_UNIT_TESTS:-false}"
+UNIT_TEST_SOLUTION="${UNIT_TEST_SOLUTION:-servoy_unit_tests}"
+UNIT_TEST_EXPORT_DIR="${UNIT_TEST_EXPORT_DIR:-/tmp/exportedSolutions}"
+UNIT_TEST_TIMEOUT_SECONDS="${UNIT_TEST_TIMEOUT_SECONDS:-300}"
+UNIT_TEST_PROPERTIES_FILE="${UNIT_TEST_PROPERTIES_FILE:-/tmp/servoy-tests.properties}"
 REPOSITORY_DB_NAME="repository_server"
 REPOSITORY_DB_HOST="${REPOSITORY_DB_HOST:-127.0.0.1}"
 REPOSITORY_DB_PORT="${REPOSITORY_DB_PORT:-3306}"
@@ -260,6 +273,78 @@ run_prisma_migrations() {
   APPDB_DATABASE_URL="${database_url}" "${prisma_bin}" migrate deploy --config "${PRISMA_WORKDIR}/prisma.appdb.config.ts" --schema "${prisma_schema_file}"
 }
 
+run_unit_tests() {
+  if [ "${ENABLE_UNIT_TESTS}" != "true" ]; then
+    echo "==> ENABLE_UNIT_TESTS=false, skipping JSUnit tests."
+    return
+  fi
+
+  echo "==> Exporting test solution '${UNIT_TEST_SOLUTION}' for JSUnit runner..."
+  rm -rf "${UNIT_TEST_EXPORT_DIR}"
+  mkdir -p "${UNIT_TEST_EXPORT_DIR}"
+
+  cp "${WAR_PROPERTIES_FILE}" "${UNIT_TEST_PROPERTIES_FILE}"
+  if grep -q '^servoy.log.clientstats=' "${UNIT_TEST_PROPERTIES_FILE}"; then
+    sed -i 's/^servoy\.log\.clientstats=.*/servoy.log.clientstats=false/' "${UNIT_TEST_PROPERTIES_FILE}"
+  else
+    printf "\nservoy.log.clientstats=false\n" >> "${UNIT_TEST_PROPERTIES_FILE}"
+  fi
+
+  "${SOLUTION_EXPORTER}" \
+    -s "${UNIT_TEST_SOLUTION}" \
+    -o "${UNIT_TEST_EXPORT_DIR}" \
+    -data "${SOURCE_DIR}" \
+    -modules \
+    -p "${UNIT_TEST_PROPERTIES_FILE}" \
+    -as "${SERVOY_HOME}/application_server" \
+    ${UNIT_TEST_EXPORT_EXTRA_ARGS:-}
+
+  jsunit_plugin_jar=$(ls "${SERVOY_HOME}"/developer/plugins/com.servoy.eclipse.jsunit_*.jar 2>/dev/null | head -n 1)
+  if [ -z "${jsunit_plugin_jar}" ]; then
+    echo "ERROR: Could not find com.servoy.eclipse.jsunit plugin jar in ${SERVOY_HOME}/developer/plugins." >&2
+    exit 1
+  fi
+
+  rm -f /tmp/j2db_test.jar /tmp/jsunit-1.3.jar
+  jar xf "${jsunit_plugin_jar}" j2db_test.jar jsunit-1.3.jar
+  if [ ! -f "j2db_test.jar" ] || [ ! -f "jsunit-1.3.jar" ]; then
+    echo "ERROR: Could not extract required JSUnit runner jars from ${jsunit_plugin_jar}." >&2
+    exit 1
+  fi
+  mv j2db_test.jar /tmp/j2db_test.jar
+  mv jsunit-1.3.jar /tmp/jsunit-1.3.jar
+
+  echo "==> Running JSUnit tests from exports in '${UNIT_TEST_EXPORT_DIR}'..."
+  jsunit_log="/tmp/jsunit-run.log"
+  jsunit_exit=0
+  (
+    cd "${SERVOY_HOME}/application_server" || exit 1
+    java \
+      -Djava.awt.headless=true \
+      -Dservoy.application_server.dir="${SERVOY_HOME}/application_server" \
+      -Dservoy.test.property-file="${UNIT_TEST_PROPERTIES_FILE}" \
+      -Dservoy.test.target-exports="${UNIT_TEST_EXPORT_DIR}" \
+      -Dservoy.test.solution-load.timeout="${UNIT_TEST_TIMEOUT_SECONDS}" \
+      ${UNIT_TEST_JAVA_OPTS:-} \
+      -cp "/tmp/j2db_test.jar:/tmp/jsunit-1.3.jar:${SERVOY_HOME}/developer/plugins/*:${SERVOY_HOME}/application_server/lib/*" \
+      com.servoy.j2db.importrunner.jsunit.ServoyJSUnitTestRunner
+  ) >"${jsunit_log}" 2>&1 || jsunit_exit=$?
+
+  cat "${jsunit_log}"
+
+  if [ "${jsunit_exit}" -ne 0 ]; then
+    echo "ERROR: JSUnit runner exited with code ${jsunit_exit}." >&2
+    exit "${jsunit_exit}"
+  fi
+
+  if grep -Eq 'FAILURES!!!|Tests run: [0-9]+, +Failures: [1-9][0-9]*|Tests run: [0-9]+, +Failures: [0-9]+, +Errors: [1-9][0-9]*' "${jsunit_log}"; then
+    echo "ERROR: JSUnit test failures detected." >&2
+    exit 1
+  fi
+
+  echo "==> JSUnit stage completed."
+}
+
 # ── Validate required vars ────────────────────────────────────────────────────
 if [ -z "${PROJECT_NAME}" ]; then
   echo "ERROR: PROJECT_NAME is required." >&2
@@ -356,6 +441,8 @@ fi
 echo "==> Using local Servoy workspace at '${SOURCE_DIR}'."
 mkdir -p "${SERVOY_USER_HOME}"
 chmod 0777 "${SERVOY_USER_HOME}"
+
+run_unit_tests
 
 # ── Show war_export.sh usage for diagnostics ─────────────────────────────────
 # echo "==> war_export.sh usage:"
