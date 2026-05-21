@@ -61,6 +61,7 @@ MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 ENABLE_PRISMA_MIGRATIONS="${ENABLE_PRISMA_MIGRATIONS:-true}"
 PRISMA_APP_DB_INDEX="${PRISMA_APP_DB_INDEX:-1}"
 PRISMA_WORKDIR="${PRISMA_WORKDIR:-/workspace}"
+SERVOY_USER_HOME="${SERVOY_USER_HOME:-/var/servoy-home}"
 REPOSITORY_DB_NAME="repository_server"
 REPOSITORY_DB_HOST="${REPOSITORY_DB_HOST:-127.0.0.1}"
 REPOSITORY_DB_PORT="${REPOSITORY_DB_PORT:-3306}"
@@ -353,6 +354,8 @@ else
 fi
 
 echo "==> Using local Servoy workspace at '${SOURCE_DIR}'."
+mkdir -p "${SERVOY_USER_HOME}"
+chmod 0777 "${SERVOY_USER_HOME}"
 
 # ── Show war_export.sh usage for diagnostics ─────────────────────────────────
 # echo "==> war_export.sh usage:"
@@ -368,6 +371,7 @@ echo "==> Building WAR for project '${PROJECT_NAME}'..."
   -pfw "${WAR_PROPERTIES_FILE}" \
   -as "${SERVOY_HOME}/application_server" \
   -pluginLocations "${SERVOY_HOME}/developer/plugins" \
+  -userHomeDirectory "${SERVOY_USER_HOME}" \
   -defaultAdminUser "${WAR_ADMIN_USER}" \
   -defaultAdminPassword "${WAR_ADMIN_PASSWORD}" \
   ${WAR_EXTRA_ARGS:-}

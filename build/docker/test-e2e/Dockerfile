@@ -56,6 +56,7 @@ RUN sed -i 's/\r$//' "${CATALINA_HOME}/bin/setenv.sh" && chmod +x "${CATALINA_HO
 
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 ENV SERVOY_HOME=/opt/servoy
+ENV SERVOY_USER_HOME=/var/servoy-home
 ENV SOURCE_DIR=/workspace/src
 ENV PRISMA_WORKDIR=/workspace
 ENV ENABLE_LOCAL_MYSQL=true
@@ -82,7 +83,9 @@ RUN set -eux; \
     mkdir -p "${SERVOY_HOME}"; \
     tar -xzf /tmp/servoy.tar.gz -C "${SERVOY_HOME}"; \
     rm /tmp/servoy.tar.gz; \
-    find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;
+    find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;; \
+    mkdir -p "${SERVOY_USER_HOME}"; \
+    chmod 0777 "${SERVOY_USER_HOME}"
 
 COPY src "${SOURCE_DIR}"
 COPY package.json package-lock.json prisma.appdb.config.ts "${PRISMA_WORKDIR}/"
