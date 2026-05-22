@@ -1,0 +1,166 @@
+name: Run Servoy Integration Tests
+
+# Reusable workflow: downloads the Servoy release asset, builds the test-e2e
+# image, and runs it against a MySQL service container.
+#
+# Usage example:
+#   jobs:
+#     test:
+#       uses: ./.github/workflows/reusable-run-tests.yml
+#       with:
+#         project_name: servoy_test
+#         servoy_version: "4046"
+#         servoy_assets_repo: seain-malkin/servoy-assets
+#       secrets:
+#         servoy_asset_token: ${{ secrets.SERVOY_ASSET_TOKEN }}
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        description: "Servoy solution/project name to export"
+        type: string
+        required: true
+      servoy_version:
+        description: "Servoy version (must match a release tag in the assets repo)"
+        type: string
+        required: true
+      servoy_assets_repo:
+        description: "owner/repo of the private Servoy assets repository"
+        type: string
+        required: true
+      run_unit_tests:
+        description: "Run JSUnit unit tests before WAR export"
+        type: boolean
+        default: false
+      unit_test_solution:
+        description: "Servoy test solution entry point"
+        type: string
+        default: "servoy_unit_tests"
+      repository_db_user:
+        description: "MySQL repository DB username"
+        type: string
+        default: "repository_user"
+      app_db_1_server_name:
+        description: "Application DB server alias"
+        type: string
+        default: "appdb"
+      app_db_1_name:
+        description: "Application DB schema/catalog"
+        type: string
+        default: "appdb"
+      app_db_1_user:
+        description: "Application DB username"
+        type: string
+        default: "appuser"
+    secrets:
+      servoy_asset_token:
+        description: "Token with Contents:read on the Servoy assets repo"
+        required: true
+      repository_db_password:
+        description: "MySQL repository DB password"
+        required: false
+      app_db_1_password:
+        description: "Application DB password"
+        required: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: repository_server
+          MYSQL_USER: ${{ inputs.repository_db_user }}
+          MYSQL_PASSWORD: ${{ secrets.repository_db_password || '' }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up application database and user
+        run: |
+          # Create the application DB and user that Prisma migrations require.
+          # The repository_server database is already created by the MySQL service env.
+          mysql -h 127.0.0.1 -P 3306 -u root -pci-root-password \
+            -e "CREATE DATABASE IF NOT EXISTS \`${{ inputs.app_db_1_name }}\`;"
+          mysql -h 127.0.0.1 -P 3306 -u root -pci-root-password \
+            -e "CREATE USER IF NOT EXISTS '${{ inputs.app_db_1_user }}'@'%' IDENTIFIED BY '${{ secrets.app_db_1_password || '' }}';"
+          mysql -h 127.0.0.1 -P 3306 -u root -pci-root-password \
+            -e "GRANT ALL PRIVILEGES ON \`${{ inputs.app_db_1_name }}\`.* TO '${{ inputs.app_db_1_user }}'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Download Servoy release asset
+        env:
+          GH_TOKEN: ${{ secrets.servoy_asset_token }}
+        run: |
+          mkdir -p artifacts
+          gh release download "v${{ inputs.servoy_version }}" \
+            --repo "${{ inputs.servoy_assets_repo }}" \
+            --pattern "servoy_linux.*.tar.gz" \
+            --dir artifacts/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-test-e2e-${{ hashFiles('build/docker/test-e2e/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-test-e2e-
+
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/docker/test-e2e/Dockerfile
+          tags: servoy-test:ci
+          load: true
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Rotate build cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Run Servoy integration test
+        run: |
+          docker run --rm --network host \
+            -e PROJECT_NAME="${{ inputs.project_name }}" \
+            -e ENABLE_LOCAL_MYSQL=false \
+            -e REPOSITORY_DB_HOST=127.0.0.1 \
+            -e REPOSITORY_DB_PORT=3306 \
+            -e REPOSITORY_DB_USER="${{ inputs.repository_db_user }}" \
+            -e REPOSITORY_DB_PASSWORD="${{ secrets.repository_db_password || '' }}" \
+            -e APP_DB_1_SERVER_NAME="${{ inputs.app_db_1_server_name }}" \
+            -e APP_DB_1_HOST=127.0.0.1 \
+            -e APP_DB_1_PORT=3306 \
+            -e APP_DB_1_NAME="${{ inputs.app_db_1_name }}" \
+            -e APP_DB_1_USER="${{ inputs.app_db_1_user }}" \
+            -e APP_DB_1_PASSWORD="${{ secrets.app_db_1_password || '' }}" \
+            -e ENABLE_UNIT_TESTS="${{ inputs.run_unit_tests }}" \
+            -e UNIT_TEST_SOLUTION="${{ inputs.unit_test_solution }}" \
+            servoy-test:ci
+
+      - name: Upload Tomcat logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomcat-logs
+          path: /tmp/tomcat-logs/
+          if-no-files-found: ignore

@@ -4,21 +4,44 @@
 
 This repository is validated through a Docker-based integration run; there is no working local lint or unit-test script in `package.json` (`npm test` is a placeholder that exits with error).
 
+### Prerequisites
+
+Place the Servoy runtime tarball (`servoy_linux.<version>.tar.gz`) in the `artifacts/`
+directory before building any Docker image.  The file is gitignored; in CI it is
+downloaded automatically from a private assets repository (see `ci/README.md`).
+
 ### Build the test-e2e image
 
 ```bash
 docker build -f build/docker/test-e2e/Dockerfile -t servoy-test-e2e .
 ```
 
-### Run the integration test container (single scenario)
+### Local development with Docker Compose (recommended)
+
+```bash
+# First time: copy the env template
+cp build/docker/test-e2e/.env.local.example build/docker/test-e2e/.env.local
+
+# Build and run (starts MySQL service container automatically)
+docker compose up --build
+```
+
+### Run the integration test container manually (requires external MySQL)
 
 ```bash
 docker run --rm \
   -e PROJECT_NAME=<servoy-solution-name> \
+  -e ENABLE_LOCAL_MYSQL=false \
+  -e REPOSITORY_DB_HOST=<host> \
+  -e APP_DB_1_SERVER_NAME=appdb \
+  -e APP_DB_1_HOST=<host> \
+  -e APP_DB_1_NAME=appdb \
+  -e APP_DB_1_USER=<user> \
   servoy-test-e2e
 ```
 
-This is the same test path used in CI (`.github/workflows/servoy-test.yml`), where the image is built and then executed with environment configuration values.
+This is the same test path used in CI (`.github/workflows/servoy-test.yml`), where
+MySQL runs as a GitHub Actions service container.
 
 ### Build the staging image
 
@@ -26,16 +49,7 @@ This is the same test path used in CI (`.github/workflows/servoy-test.yml`), whe
 docker build -f build/docker/staging/Dockerfile -t servoy-staging .
 ```
 
-### Local env-file workflow
-
-Use per-environment local env files and run with `--env-file`:
-
-```bash
-cp build/docker/test-e2e/.env.local.example build/docker/test-e2e/.env.local
-docker run --rm --env-file build/docker/test-e2e/.env.local servoy-test-e2e
-```
-
-PowerShell helper scripts are available:
+### PowerShell helper scripts (advanced — direct docker run, external MySQL required)
 
 ```powershell
 .\build\docker\test-e2e\run-local.ps1 -Build

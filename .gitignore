@@ -35,8 +35,9 @@ coverage/
 dist/
 generated/
 
-# Large local artifacts
-artifacts/
+# Large local artifacts (track directory via .gitkeep; ignore binary tarballs)
+artifacts/*.tar.gz
+artifacts/*.gz
 
 # Local debug artifacts from Docker runs
 _debug-logs/

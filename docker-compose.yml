@@ -1,0 +1,49 @@
+# Local development Docker Compose
+#
+# Provides an external MySQL 8.4 service and the test-e2e application container.
+# MySQL replaces the former ENABLE_LOCAL_MYSQL=true in-container approach.
+#
+# Quick start:
+#   1. Place servoy_linux.<version>.tar.gz in artifacts/ (see ci/README.md)
+#   2. cp build/docker/test-e2e/.env.local.example build/docker/test-e2e/.env.local
+#   3. Edit build/docker/test-e2e/.env.local with your PROJECT_NAME and credentials
+#   4. docker compose up --build
+#
+# Run tests only (no interactive shell):
+#   docker compose run --rm servoy-test
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: repository_server
+      MYSQL_USER: repository_user
+      MYSQL_PASSWORD: ""
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  servoy-test:
+    build:
+      context: .
+      dockerfile: build/docker/test-e2e/Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file: build/docker/test-e2e/.env.local
+    environment:
+      ENABLE_LOCAL_MYSQL: "false"
+      REPOSITORY_DB_HOST: mysql
+      REPOSITORY_DB_PORT: "3306"
+      APP_DB_1_HOST: mysql
+
+volumes:
+  mysql_data:

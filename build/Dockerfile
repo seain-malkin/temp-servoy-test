@@ -1,18 +1,27 @@
 # syntax=docker/dockerfile:1
 #
-# Servoy Test Environment
+# Servoy Test Environment (legacy root Dockerfile)
+#
+# This file is kept for backward compatibility.
+# Prefer build/docker/test-e2e/Dockerfile for new builds.
 #
 # Build (from repo root):
 #   docker build -f build/Dockerfile -t servoy-test .
 #
-# Run:
+# Run (with external MySQL — see docker-compose.yml for local setup):
 #   docker run --rm \
 #     -e PROJECT_NAME=MyServoyApp \
-#     [-e MYSQL_ROOT_PASSWORD=secret]  # default: no root password
-#     [-e MYSQL_DATABASE=mydb]         # creates DB on startup
-#     [-e MYSQL_USER=appuser]          # creates app user (requires MYSQL_DATABASE)
-#     [-e MYSQL_PASSWORD=apppass]      # password for MYSQL_USER
+#     -e ENABLE_LOCAL_MYSQL=false \
+#     -e REPOSITORY_DB_HOST=<host> \
+#     -e APP_DB_1_SERVER_NAME=appdb \
+#     -e APP_DB_1_HOST=<host> \
+#     -e APP_DB_1_NAME=appdb \
+#     -e APP_DB_1_USER=appuser \
 #     servoy-test
+#
+# Servoy binary prerequisite:
+#   Place servoy_linux.<version>.tar.gz in artifacts/ before building.
+#   In CI the tarball is downloaded automatically — see ci/README.md.
 
 FROM debian:bookworm-slim
 ARG NODE_VERSION=22.16.0
@@ -64,7 +73,7 @@ RUN sed -i 's/\r$//' "${CATALINA_HOME}/bin/setenv.sh" && chmod +x "${CATALINA_HO
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 ENV SOURCE_DIR=/workspace/src
 ENV PRISMA_WORKDIR=/workspace
-ENV ENABLE_LOCAL_MYSQL=true
+ENV ENABLE_LOCAL_MYSQL=false
 ENV DB_HOST=127.0.0.1
 ENV DB_PORT=3306
 ENV DB_NAME=repository_server
@@ -85,12 +94,20 @@ ENV DB_SKIP_SYS_TABLES=false
 
 # ── Servoy ───────────────────────────────────────────────────────────────────
 ENV SERVOY_HOME=/opt/servoy
+ENV SERVOY_USER_HOME=/var/servoy-home
 
-COPY artifacts/servoy_linux.4046.tar.gz /tmp/servoy.tar.gz
+# Servoy binary: place servoy_linux.*.tar.gz in artifacts/ before building.
+# In CI the tarball is downloaded from the private assets repo — see ci/README.md.
+COPY artifacts/ /tmp/servoy-artifacts/
 RUN set -eux; \
+    tarball=$(ls /tmp/servoy-artifacts/servoy_linux.*.tar.gz 2>/dev/null | head -n 1); \
+    if [ -z "${tarball}" ]; then \
+      echo "ERROR: No Servoy tarball found in artifacts/. Place servoy_linux.*.tar.gz there before building. See ci/README.md." >&2; \
+      exit 1; \
+    fi; \
     mkdir -p "${SERVOY_HOME}"; \
-    tar -xzf /tmp/servoy.tar.gz -C "${SERVOY_HOME}"; \
-    rm /tmp/servoy.tar.gz; \
+    tar -xzf "${tarball}" -C "${SERVOY_HOME}"; \
+    rm -rf /tmp/servoy-artifacts; \
     find "${SERVOY_HOME}" -name "*.sh" -exec chmod +x {} \;
 
 COPY src "${SOURCE_DIR}"
@@ -101,23 +118,10 @@ RUN set -eux; \
     cd "${PRISMA_WORKDIR}"; \
     npm ci
 
-# ── MySQL 8.4 LTS ────────────────────────────────────────────────────────────
-RUN set -eux; \
-    curl -fsSL https://repo.mysql.com/RPM-GPG-KEY-mysql-2025 | gpg --dearmor > /usr/share/keyrings/mysql-archive-keyring.gpg; \
-    echo "deb [signed-by=/usr/share/keyrings/mysql-archive-keyring.gpg] https://repo.mysql.com/apt/debian bookworm mysql-8.4-lts" > /etc/apt/sources.list.d/mysql.list; \
-    apt-get update; \
-    echo "mysql-community-server mysql-community-server/root-pass password ''" | debconf-set-selections; \
-    echo "mysql-community-server mysql-community-server/re-root-pass password ''" | debconf-set-selections; \
-    # Prevent the package from trying to start mysqld during install (no init system in container)
-    echo 'exit 101' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mysql-community-server; \
-    rm /usr/sbin/policy-rc.d; \
-    rm -rf /var/lib/apt/lists/*; \
-    # Clear package-initialized data so entrypoint can do deterministic first-run init
-    rm -rf /var/lib/mysql/*; \
-    mkdir -p /var/lib/mysql && chown -R mysql:mysql /var/lib/mysql; \
-    # Pre-create the run directory; mysqld needs it at startup
-    mkdir -p /var/run/mysqld && chown mysql:mysql /var/run/mysqld
+# ── MySQL 8.4 LTS ─────────────────────────────────────────────────────────────
+# NOTE: MySQL is no longer installed in this image.  Use a MySQL service container
+# in CI (see .github/workflows/reusable-run-tests.yml) or docker-compose.yml locally.
+# Set ENABLE_LOCAL_MYSQL=false and supply REPOSITORY_DB_* / APP_DB_1_* env vars.
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
 COPY build/entrypoint.sh /entrypoint.sh
@@ -126,6 +130,6 @@ RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 # Backward-compatible default: use test-e2e env properties when building this legacy file.
 COPY build/docker/test-e2e/servoy.properties /config/servoy.properties
 
-EXPOSE 8080 3306
+EXPOSE 8080
 
 ENTRYPOINT ["/entrypoint.sh"]
