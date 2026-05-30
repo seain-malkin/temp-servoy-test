@@ -1,0 +1,35 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: servoy-ci-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${APP_DB_1_NAME:-appdb}
+      MYSQL_USER: ${APP_DB_1_USER:-appuser}
+      MYSQL_PASSWORD: ${APP_DB_1_PASSWORD:-appsecret}
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  tomcat:
+    image: tomcat:9.0-jdk17-temurin
+    container_name: servoy-ci-tomcat
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${TOMCAT_HOST_PORT:-8080}:8080"
+    volumes:
+      - ../_ci/tomcat/webapps:/usr/local/tomcat/webapps
+      - ../_ci/tomcat/logs:/usr/local/tomcat/logs
+
+volumes:
+  mysql-data:

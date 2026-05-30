@@ -1,0 +1,100 @@
+name: PR validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  servoy-pr-validation:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PROJECT_NAME: servoy_test
+      ENABLE_UNIT_TESTS: "true"
+      UNIT_TEST_SOLUTION: servoy_unit_tests
+      MYSQL_HOST_PORT: "3307"
+      TOMCAT_HOST_PORT: "8080"
+      MYSQL_ROOT_PASSWORD: root
+      APP_DB_1_SERVER_NAME: appdb
+      APP_DB_1_HOST: 127.0.0.1
+      APP_DB_1_PORT: "3307"
+      APP_DB_1_NAME: appdb
+      APP_DB_1_USER: appuser
+      APP_DB_1_PASSWORD: appsecret
+      REPOSITORY_DB_NAME: repository_server
+      REPOSITORY_DB_HOST: 127.0.0.1
+      REPOSITORY_DB_PORT: "3307"
+      REPOSITORY_DB_USER: repository_user
+      REPOSITORY_DB_PASSWORD: repository_secret
+      HEALTH_CHECK_URL: http://127.0.0.1:8080/
+      SERVOY_ASSETS_REPO: ${{ vars.SERVOY_ASSETS_REPO }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Validate Servoy assets repository variable
+        run: |
+          if [ -z "${SERVOY_ASSETS_REPO}" ]; then
+            echo "SERVOY_ASSETS_REPO repo variable is required." >&2
+            exit 1
+          fi
+
+      - name: Download Servoy binary
+        env:
+          GH_TOKEN: ${{ secrets.SERVOY_ASSET_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "SERVOY_ASSET_TOKEN secret is required." >&2
+            exit 1
+          fi
+          mkdir -p artifacts
+          gh release download \
+            --repo "${SERVOY_ASSETS_REPO}" \
+            --latest \
+            --pattern "servoy_linux.*.tar.gz" \
+            --dir artifacts \
+            --clobber
+
+      - name: Prepare CI directories
+        run: mkdir -p _ci/tomcat/webapps _ci/tomcat/logs _ci/logs _ci/tools
+
+      - name: Start compose services
+        run: docker compose -f ci/docker-compose.ci.yml up -d mysql tomcat
+
+      - name: Run Servoy migration and tests
+        run: bash ci/scripts/run-servoy-ci.sh
+
+      - name: Collect compose logs
+        if: always()
+        run: |
+          docker compose -f ci/docker-compose.ci.yml logs --no-color > _ci/logs/compose.log || true
+          docker logs servoy-ci-mysql > _ci/logs/mysql.log 2>&1 || true
+          docker logs servoy-ci-tomcat > _ci/logs/tomcat.log 2>&1 || true
+
+      - name: Upload CI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-validation-logs
+          path: _ci/logs
+          if-no-files-found: ignore
+
+      - name: Stop compose services
+        if: always()
+        run: docker compose -f ci/docker-compose.ci.yml down -v
