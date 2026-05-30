@@ -106,6 +106,10 @@ ensure_mysql_databases() {
   local root_password="${MYSQL_ROOT_PASSWORD}"
   local inspected_password
   local login_args=()
+  local mode
+  local mode_args=()
+  local auth_ok="false"
+  local attempt
 
   inspected_password="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${MYSQL_CONTAINER_NAME}" 2>/dev/null | sed -n 's/^MYSQL_ROOT_PASSWORD=//p' | head -n 1 || true)"
   if [ -n "${inspected_password}" ]; then
@@ -118,13 +122,29 @@ ensure_mysql_databases() {
     login_args=(-uroot)
   fi
 
-  if ! docker exec "${MYSQL_CONTAINER_NAME}" mysql "${login_args[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
-    if ! docker exec "${MYSQL_CONTAINER_NAME}" mysql -h127.0.0.1 "${login_args[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
-      echo "ERROR: unable to authenticate as MySQL root in container '${MYSQL_CONTAINER_NAME}'." >&2
-      docker logs "${MYSQL_CONTAINER_NAME}" > "${ROOT_DIR}/_ci/logs/mysql.log" 2>&1 || true
-      exit 1
+  for attempt in $(seq 1 30); do
+    for mode in socket localhost tcp; do
+      case "${mode}" in
+        socket) mode_args=() ;;
+        localhost) mode_args=(-hlocalhost) ;;
+        tcp) mode_args=(-h127.0.0.1) ;;
+      esac
+      if docker exec "${MYSQL_CONTAINER_NAME}" mysql "${mode_args[@]}" "${login_args[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+        login_args=("${mode_args[@]}" "${login_args[@]}")
+        auth_ok="true"
+        break
+      fi
+    done
+    if [ "${auth_ok}" = "true" ]; then
+      break
     fi
-    login_args=(-h127.0.0.1 "${login_args[@]}")
+    sleep 2
+  done
+
+  if [ "${auth_ok}" != "true" ]; then
+    echo "ERROR: unable to authenticate as MySQL root in container '${MYSQL_CONTAINER_NAME}' after retries." >&2
+    docker logs "${MYSQL_CONTAINER_NAME}" > "${ROOT_DIR}/_ci/logs/mysql.log" 2>&1 || true
+    exit 1
   fi
 
   docker exec "${MYSQL_CONTAINER_NAME}" mysql "${login_args[@]}" \
