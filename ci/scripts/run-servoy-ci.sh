@@ -267,20 +267,40 @@ run_jsunit_tests() {
 
 build_war() {
   local war_exporter="${SERVOY_HOME}/developer/exporter/war_export.sh"
+  local war_log_base="${ROOT_DIR}/_ci/logs/war-export"
+  local attempt=1
+  local max_attempts=2
+  local war_log
   require_file "${war_exporter}"
   mkdir -p "${WAR_OUTPUT_DIR}"
+  mkdir -p "${ROOT_DIR}/_ci/logs"
 
-  "${war_exporter}" \
-    -s "${PROJECT_NAME}" \
-    -o "${WAR_OUTPUT_DIR}" \
-    -data "${SOURCE_DIR}" \
-    -warFileName "${WAR_FILE_BASENAME}" \
-    -pfw "${WAR_PROPERTIES_FILE}" \
-    -as "${SERVOY_HOME}/application_server" \
-    -pluginLocations "${SERVOY_HOME}/developer/plugins" \
-    -userHomeDirectory "${SERVOY_USER_HOME}" \
-    -defaultAdminUser "${WAR_ADMIN_USER}" \
-    -defaultAdminPassword "${WAR_ADMIN_PASSWORD}"
+  while [ "${attempt}" -le "${max_attempts}" ]; do
+    war_log="${war_log_base}.attempt-${attempt}.log"
+    if "${war_exporter}" \
+      -s "${PROJECT_NAME}" \
+      -o "${WAR_OUTPUT_DIR}" \
+      -data "${SOURCE_DIR}" \
+      -warFileName "${WAR_FILE_BASENAME}" \
+      -pfw "${WAR_PROPERTIES_FILE}" \
+      -as "${SERVOY_HOME}/application_server" \
+      -pluginLocations "${SERVOY_HOME}/developer/plugins" \
+      -userHomeDirectory "${SERVOY_USER_HOME}" \
+      -defaultAdminUser "${WAR_ADMIN_USER}" \
+      -defaultAdminPassword "${WAR_ADMIN_PASSWORD}" 2>&1 | tee "${war_log}"; then
+      break
+    fi
+
+    if [ "${attempt}" -lt "${max_attempts}" ] && grep -Eq 'could not create/copy Titanium NGClient resources|NodeFolderCreatorJob|java\.io\.IOException: Stream closed' "${war_log}"; then
+      echo "WARN: transient Servoy NGClient export failure detected; retrying WAR export once..." >&2
+      attempt=$((attempt + 1))
+      sleep 5
+      continue
+    fi
+
+    echo "ERROR: WAR export failed. See ${war_log}" >&2
+    exit 1
+  done
 
   require_file "${WAR_OUTPUT_DIR}/${WAR_FILE_BASENAME}.war"
 }
