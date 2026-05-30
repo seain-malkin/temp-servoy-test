@@ -41,6 +41,7 @@ artifacts/
 # Local debug artifacts from Docker runs
 _debug-logs/
 build/docker/**/_debug-logs/
+_ci/
 
 # Copilot session artifacts
 .copilot/

@@ -1,0 +1,24 @@
+# Base Servoy properties for CI WAR export.
+ApplicationServer.pingDelay=225
+SocketFactory.useSSL=true
+SocketFactory.useTwoWaySocket=true
+java.rmi.server.hostname=127.0.0.1
+servoy.allowSolutionBrowsing=false
+servoy.application_server.allowClientRepositoryAccess=false
+servoy.branding=false
+servoy.client.report.max.valuelist.items=true
+servoy.clientTrustDataAsHtml=false
+servoy.disableDataChangeNotify=false
+servoy.ngclient.enableWebResourceOptimizer=true
+servoy.ngclient.setContentSecurityPolicyHeader=false
+servoy.ngclient.testingMode=false
+servoy.objectPoolSize=50000
+servoy.record.lock.lockInDB=false
+servoy.use.client.timezone=true
+servoy.webclient.basic.authentication=false
+servoy.webclient.blockinputonrequest=false
+servoy.webclient.enableAnchors=true
+servoy.webclient.enforceSecureCookies=false
+servoy.webclient.nice.urls=false
+servoy.webclient.useAjax=true
+waitForNativeStartup=false
