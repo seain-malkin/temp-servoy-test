@@ -63,10 +63,14 @@ jobs:
             echo "SERVOY_ASSET_TOKEN secret is required." >&2
             exit 1
           fi
+          latest_tag="$(gh release list --repo "${SERVOY_ASSETS_REPO}" --limit 1 --json tagName --jq '.[0].tagName')"
+          if [ -z "${latest_tag}" ] || [ "${latest_tag}" = "null" ]; then
+            echo "No releases found in ${SERVOY_ASSETS_REPO}." >&2
+            exit 1
+          fi
           mkdir -p artifacts
-          gh release download \
+          gh release download "${latest_tag}" \
             --repo "${SERVOY_ASSETS_REPO}" \
-            --latest \
             --pattern "servoy_linux.*.tar.gz" \
             --dir artifacts \
             --clobber
