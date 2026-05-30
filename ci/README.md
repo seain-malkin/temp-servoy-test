@@ -30,3 +30,13 @@ If omitted, staging falls back to:
 - `SERVOY_ASSETS_REPO`
 - `servoy_test`
 - `servoy_unit_tests`
+
+## Staging workflow guardrails
+
+`staging-validation.yml` is configured to:
+
+- run only when dispatched from `main`
+- target GitHub Environment `staging`
+- serialize runs using concurrency group `staging-validation-main`
+
+Configure Environment `staging` in repository settings to enforce approvals, branch rules, and environment-scoped secrets if needed.
