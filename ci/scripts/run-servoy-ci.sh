@@ -267,15 +267,17 @@ build_war() {
 
 wait_for_tomcat_health() {
   local attempt=0
+  local http_code
   while [ "${attempt}" -lt "${HEALTH_CHECK_RETRIES}" ]; do
-    if curl -fsS -o /dev/null "${HEALTH_CHECK_URL}"; then
+    http_code="$(curl -sS -o /dev/null -w '%{http_code}' "${HEALTH_CHECK_URL}" || true)"
+    if [ "${http_code}" != "000" ] && [ -n "${http_code}" ]; then
       return 0
     fi
     attempt=$((attempt + 1))
     sleep "${HEALTH_CHECK_DELAY}"
   done
 
-  echo "ERROR: Tomcat health check failed for '${HEALTH_CHECK_URL}'." >&2
+  echo "ERROR: Tomcat health check failed for '${HEALTH_CHECK_URL}' (no HTTP response)." >&2
   exit 1
 }
 
