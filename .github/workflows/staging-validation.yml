@@ -1,0 +1,22 @@
+name: Staging validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_unit_tests:
+        description: Run servoy_unit_tests during staging validation.
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  servoy-staging-validation:
+    uses: ./.github/workflows/reusable-servoy-ci.yml
+    with:
+      project_name: ${{ vars.STAGING_PROJECT_NAME || 'servoy_test' }}
+      unit_test_solution: ${{ vars.STAGING_UNIT_TEST_SOLUTION || 'servoy_unit_tests' }}
+      enable_unit_tests: ${{ github.event.inputs.run_unit_tests != 'false' }}
+      servoy_assets_repo: ${{ vars.SERVOY_ASSETS_REPO_STAGING || vars.SERVOY_ASSETS_REPO }}
+      artifact_name: staging-validation-logs
+    secrets:
+      servoy_asset_token: ${{ secrets.SERVOY_ASSET_TOKEN }}
