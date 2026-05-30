@@ -103,7 +103,31 @@ wait_for_mysql() {
 }
 
 ensure_mysql_databases() {
-  docker exec "${MYSQL_CONTAINER_NAME}" mysql -uroot "-p${MYSQL_ROOT_PASSWORD}" \
+  local root_password="${MYSQL_ROOT_PASSWORD}"
+  local inspected_password
+  local login_args=()
+
+  inspected_password="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${MYSQL_CONTAINER_NAME}" 2>/dev/null | sed -n 's/^MYSQL_ROOT_PASSWORD=//p' | head -n 1 || true)"
+  if [ -n "${inspected_password}" ]; then
+    root_password="${inspected_password}"
+  fi
+
+  if [ -n "${root_password}" ]; then
+    login_args=(-uroot "-p${root_password}")
+  else
+    login_args=(-uroot)
+  fi
+
+  if ! docker exec "${MYSQL_CONTAINER_NAME}" mysql "${login_args[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+    if ! docker exec "${MYSQL_CONTAINER_NAME}" mysql -h127.0.0.1 "${login_args[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+      echo "ERROR: unable to authenticate as MySQL root in container '${MYSQL_CONTAINER_NAME}'." >&2
+      docker logs "${MYSQL_CONTAINER_NAME}" > "${ROOT_DIR}/_ci/logs/mysql.log" 2>&1 || true
+      exit 1
+    fi
+    login_args=(-h127.0.0.1 "${login_args[@]}")
+  fi
+
+  docker exec "${MYSQL_CONTAINER_NAME}" mysql "${login_args[@]}" \
     -e "CREATE DATABASE IF NOT EXISTS \`${REPOSITORY_DB_NAME}\`;" \
     -e "CREATE USER IF NOT EXISTS '${REPOSITORY_DB_USER}'@'%' IDENTIFIED BY '${REPOSITORY_DB_PASSWORD}';" \
     -e "GRANT ALL PRIVILEGES ON \`${REPOSITORY_DB_NAME}\`.* TO '${REPOSITORY_DB_USER}'@'%';" \
