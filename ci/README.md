@@ -36,7 +36,6 @@ If omitted, staging falls back to:
 `staging-validation.yml` is configured to:
 
 - run only when dispatched from `main`
-- target GitHub Environment `staging`
 - serialize runs using concurrency group `staging-validation-main`
 
-Configure Environment `staging` in repository settings to enforce approvals, branch rules, and environment-scoped secrets if needed.
+Note: workflow-level `environment` is not applied directly on reusable-workflow caller jobs. If environment approvals are required, add environment targeting inside the reusable workflow via an explicit input.

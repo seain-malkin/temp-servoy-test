@@ -19,7 +19,6 @@ concurrency:
 jobs:
   servoy-staging-validation:
     if: ${{ github.ref == 'refs/heads/main' }}
-    environment: staging
     uses: ./.github/workflows/reusable-servoy-ci.yml
     with:
       project_name: ${{ vars.STAGING_PROJECT_NAME || 'servoy_test' }}
