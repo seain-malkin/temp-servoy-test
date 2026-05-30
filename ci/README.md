@@ -5,6 +5,7 @@ This repository uses a shared workflow engine and thin caller workflows:
 - `.github/workflows/reusable-servoy-ci.yml` (shared pipeline)
 - `.github/workflows/pr-validation.yml` (PR caller)
 - `.github/workflows/staging-validation.yml` (manual staging caller)
+- `.github/workflows/production-validation.yml` (manual production caller)
 
 ## Required GitHub configuration
 
@@ -30,6 +31,22 @@ If omitted, staging falls back to:
 - `SERVOY_ASSETS_REPO`
 - `servoy_test`
 - `servoy_unit_tests`
+
+## Optional production overrides
+
+These variables are optional and only used by `production-validation.yml`:
+
+- `SERVOY_ASSETS_REPO_PRODUCTION`
+- `PRODUCTION_PROJECT_NAME`
+- `PRODUCTION_UNIT_TEST_SOLUTION`
+
+If omitted, production falls back to:
+
+- `SERVOY_ASSETS_REPO`
+- `servoy_test`
+- `servoy_unit_tests`
+
+Production workflow requires a manual `servoy_release_tag` input so runs are pinned to an explicit immutable release tag.
 
 ## Staging workflow guardrails
 
