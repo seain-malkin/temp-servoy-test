@@ -21,6 +21,11 @@ on:
         required: false
         default: ci-logs
         type: string
+      servoy_release_tag:
+        description: Optional Servoy release tag; when empty the latest release is used.
+        required: false
+        default: ""
+        type: string
       enable_unit_tests:
         description: Whether to execute JSUnit tests.
         required: false
@@ -54,6 +59,7 @@ jobs:
       REPOSITORY_DB_PASSWORD: repository_secret
       HEALTH_CHECK_URL: http://127.0.0.1:8080/
       SERVOY_ASSETS_REPO: ${{ inputs.servoy_assets_repo }}
+      SERVOY_RELEASE_TAG: ${{ inputs.servoy_release_tag }}
 
     steps:
       - uses: actions/checkout@v6
@@ -88,13 +94,16 @@ jobs:
             echo "servoy_asset_token secret is required." >&2
             exit 1
           fi
-          latest_tag="$(gh release list --repo "${SERVOY_ASSETS_REPO}" --limit 1 --json tagName --jq '.[0].tagName')"
-          if [ -z "${latest_tag}" ] || [ "${latest_tag}" = "null" ]; then
-            echo "No releases found in ${SERVOY_ASSETS_REPO}." >&2
+          release_tag="${SERVOY_RELEASE_TAG}"
+          if [ -z "${release_tag}" ]; then
+            release_tag="$(gh release list --repo "${SERVOY_ASSETS_REPO}" --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+          if [ -z "${release_tag}" ] || [ "${release_tag}" = "null" ]; then
+            echo "No release tag available for ${SERVOY_ASSETS_REPO}." >&2
             exit 1
           fi
           mkdir -p artifacts
-          gh release download "${latest_tag}" \
+          gh release download "${release_tag}" \
             --repo "${SERVOY_ASSETS_REPO}" \
             --pattern "servoy_linux.*.tar.gz" \
             --dir artifacts \
