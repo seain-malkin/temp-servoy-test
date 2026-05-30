@@ -9,8 +9,16 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-validation-main
+  cancel-in-progress: false
+
 jobs:
   servoy-staging-validation:
+    if: ${{ github.ref == 'refs/heads/main' }}
     uses: ./.github/workflows/reusable-servoy-ci.yml
     with:
       project_name: ${{ vars.STAGING_PROJECT_NAME || 'servoy_test' }}

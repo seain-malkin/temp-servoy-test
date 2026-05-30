@@ -30,3 +30,12 @@ If omitted, staging falls back to:
 - `SERVOY_ASSETS_REPO`
 - `servoy_test`
 - `servoy_unit_tests`
+
+## Staging workflow guardrails
+
+`staging-validation.yml` is configured to:
+
+- run only when dispatched from `main`
+- serialize runs using concurrency group `staging-validation-main`
+
+Note: workflow-level `environment` is not applied directly on reusable-workflow caller jobs. If environment approvals are required, add environment targeting inside the reusable workflow via an explicit input.
