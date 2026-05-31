@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 20
     environment: staging
     env:
-      APPDB_DATABASE_URL: ${{ secrets.APPDB_DATABASE_URL }}
+      APPDB_DATABASE_URL: ${{ secrets.APPDB_DATABASE_URL || secrets.STAGING_DB_URL }}
       APP_VERSION: ${{ github.event.inputs.app_version }}
 
     steps:
@@ -43,9 +43,13 @@ jobs:
       - name: Validate staging database URL
         run: |
           if [ -z "${APPDB_DATABASE_URL}" ]; then
-            echo "staging environment secret APPDB_DATABASE_URL is required." >&2
+            echo "staging secret APPDB_DATABASE_URL (or STAGING_DB_URL) is required." >&2
             exit 1
           fi
+
+      - name: Verify runner can reach staging MySQL
+        run: |
+          node -e "const u=new URL(process.env.APPDB_DATABASE_URL); const net=require('net'); const host=u.hostname; const port=u.port ? Number(u.port) : 3306; const socket=net.createConnection({host,port}); socket.setTimeout(5000); socket.on('connect',()=>{console.log('TCP reachable from runner:', host+':'+port); socket.end();}); socket.on('timeout',()=>{console.error('TCP timeout to', host+':'+port); socket.destroy(); process.exit(1);}); socket.on('error',(e)=>{console.error('TCP connection failed:', e.message); process.exit(1);});"
 
       - name: Validate Prisma configuration
         run: npm run prisma:validate:appdb

@@ -32,7 +32,33 @@ jobs:
         env:
           STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
           STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
         run: |
           set -euo pipefail
-          timeout 5 bash -c ">/dev/tcp/${STAGING_DB_HOST}/${STAGING_DB_PORT}"
-          echo "DB TCP reachable from runner at ${STAGING_DB_HOST}:${STAGING_DB_PORT}"
+          host="${STAGING_DB_HOST:-}"
+          port="${STAGING_DB_PORT:-}"
+
+          if [ -z "$host" ] || [ -z "$port" ]; then
+            if [ -n "${STAGING_DB_URL:-}" ]; then
+              parsed="$(python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+url = os.environ.get("STAGING_DB_URL", "")
+p = urlparse(url)
+host = p.hostname or ""
+port = p.port or 3306
+print(f"{host}|{port}")
+PY
+)"
+              host="${parsed%%|*}"
+              port="${parsed##*|}"
+            fi
+          fi
+
+          if [ -z "$host" ] || [ -z "$port" ]; then
+            echo "Set STAGING_DB_HOST/STAGING_DB_PORT, or STAGING_DB_URL." >&2
+            exit 1
+          fi
+
+          timeout 5 bash -c ">/dev/tcp/${host}/${port}"
+          echo "DB TCP reachable from runner at ${host}:${port}"

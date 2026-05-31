@@ -65,7 +65,7 @@ Note: workflow-level `environment` is not applied directly on reusable-workflow 
 Set these for staging:
 
 - Environment: `staging`
-- Environment secret: `APPDB_DATABASE_URL`
+- Environment secret: `APPDB_DATABASE_URL` (or `STAGING_DB_URL`)
 - Optional variables: `STAGING_RUNNER_LABEL` (default `staging`), `STAGING_NETWORK_LABEL` (default `office-net`)
 
 Workflow behavior:
@@ -73,6 +73,7 @@ Workflow behavior:
 - manual dispatch only
 - run only when dispatched from `main`
 - execute on self-hosted runner labels `self-hosted` + staging/network labels
+- verify MySQL TCP reachability from the runner network path
 - install dependencies, validate Prisma config, run `prisma migrate deploy`
 - serialize runs using concurrency group `staging-migrations`
 
