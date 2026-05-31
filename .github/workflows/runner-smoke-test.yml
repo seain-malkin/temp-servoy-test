@@ -27,3 +27,12 @@ jobs:
           whoami
           uname -a
           echo "Self-hosted runner is working."
+
+      - name: Test DB TCP reachability
+        env:
+          STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+          STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+        run: |
+          set -euo pipefail
+          timeout 5 bash -c ">/dev/tcp/${STAGING_DB_HOST}/${STAGING_DB_PORT}"
+          echo "DB TCP reachable from runner at ${STAGING_DB_HOST}:${STAGING_DB_PORT}"
