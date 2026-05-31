@@ -1,0 +1,29 @@
+name: Runner smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on:
+      - self-hosted
+      - staging
+      - office-net
+    timeout-minutes: 10
+    steps:
+      - name: Show runner details
+        run: |
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner arch: $RUNNER_ARCH"
+          echo "Workspace: $GITHUB_WORKSPACE"
+
+      - name: Execute simple commands
+        run: |
+          date -u
+          whoami
+          uname -a
+          echo "Self-hosted runner is working."
