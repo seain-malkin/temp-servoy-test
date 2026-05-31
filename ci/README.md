@@ -66,13 +66,13 @@ Set these for staging:
 
 - Environment: `staging`
 - Environment secret: `APPDB_DATABASE_URL` (or `STAGING_DB_URL`)
-- Optional variables: `STAGING_RUNNER_LABEL` (default `staging`), `STAGING_NETWORK_LABEL` (default `office-net`)
+- Runner labels: `self-hosted`, `staging`, `office-net`
 
 Workflow behavior:
 
 - manual dispatch only
 - run only when dispatched from `main`
-- execute on self-hosted runner labels `self-hosted` + staging/network labels
+- execute on self-hosted runner labels `self-hosted`, `staging`, `office-net`
 - verify MySQL TCP reachability from the runner network path
 - install dependencies, validate Prisma config, run `prisma migrate deploy`
 - serialize runs using concurrency group `staging-migrations`

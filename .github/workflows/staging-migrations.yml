@@ -1,62 +1,67 @@
 name: Staging migrations
 
 on:
-  workflow_dispatch:
-    inputs:
-      app_version:
-        description: Optional app version or release tag for traceability.
-        required: false
-        type: string
+    workflow_dispatch:
+        inputs:
+            app_version:
+                description: Optional app version or release tag for traceability.
+                required: false
+                type: string
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: staging-migrations
-  cancel-in-progress: false
+    group: staging-migrations
+    cancel-in-progress: false
 
 jobs:
-  run-staging-migrations:
-    if: ${{ github.ref == 'refs/heads/main' }}
-    runs-on:
-      - self-hosted
-      - ${{ vars.STAGING_RUNNER_LABEL || 'staging' }}
-      - ${{ vars.STAGING_NETWORK_LABEL || 'office-net' }}
-    timeout-minutes: 20
-    environment: staging
-    env:
-      APPDB_DATABASE_URL: ${{ secrets.APPDB_DATABASE_URL || secrets.STAGING_DB_URL }}
-      APP_VERSION: ${{ github.event.inputs.app_version }}
+    run-staging-migrations:
+        if: ${{ github.ref == 'refs/heads/main' }}
+        runs-on:
+            - self-hosted
+            - staging
+            - office-net
+        timeout-minutes: 20
+        environment: staging
+        env:
+            APPDB_DATABASE_URL: ${{ secrets.APPDB_DATABASE_URL }}
+            STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+            APP_VERSION: ${{ github.event.inputs.app_version }}
 
-    steps:
-      - uses: actions/checkout@v6
+        steps:
+            - uses: actions/checkout@v6
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
+            - name: Set up Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '22'
+                  cache: npm
 
-      - name: Install npm dependencies
-        run: npm ci
+            - name: Install npm dependencies
+              run: npm ci
 
-      - name: Validate staging database URL
-        run: |
-          if [ -z "${APPDB_DATABASE_URL}" ]; then
-            echo "staging secret APPDB_DATABASE_URL (or STAGING_DB_URL) is required." >&2
-            exit 1
-          fi
+            - name: Validate staging database URL
+              run: |
+                  if [ -z "${APPDB_DATABASE_URL}" ] && [ -n "${STAGING_DB_URL}" ]; then
+                    export APPDB_DATABASE_URL="${STAGING_DB_URL}"
+                  fi
+                  if [ -z "${APPDB_DATABASE_URL}" ]; then
+                    echo "staging secret APPDB_DATABASE_URL (or STAGING_DB_URL) is required." >&2
+                    exit 1
+                  fi
+                  echo "APPDB_DATABASE_URL=${APPDB_DATABASE_URL}" >> "$GITHUB_ENV"
 
-      - name: Verify runner can reach staging MySQL
-        run: |
-          node -e "const u=new URL(process.env.APPDB_DATABASE_URL); const net=require('net'); const host=u.hostname; const port=u.port ? Number(u.port) : 3306; const socket=net.createConnection({host,port}); socket.setTimeout(5000); socket.on('connect',()=>{console.log('TCP reachable from runner:', host+':'+port); socket.end();}); socket.on('timeout',()=>{console.error('TCP timeout to', host+':'+port); socket.destroy(); process.exit(1);}); socket.on('error',(e)=>{console.error('TCP connection failed:', e.message); process.exit(1);});"
+            - name: Verify runner can reach staging MySQL
+              run: |
+                  node -e "const u=new URL(process.env.APPDB_DATABASE_URL); const net=require('net'); const host=u.hostname; const port=u.port ? Number(u.port) : 3306; const socket=net.createConnection({host,port}); socket.setTimeout(5000); socket.on('connect',()=>{console.log('TCP reachable from runner:', host+':'+port); socket.end();}); socket.on('timeout',()=>{console.error('TCP timeout to', host+':'+port); socket.destroy(); process.exit(1);}); socket.on('error',(e)=>{console.error('TCP connection failed:', e.message); process.exit(1);});"
 
-      - name: Validate Prisma configuration
-        run: npm run prisma:validate:appdb
+            - name: Validate Prisma configuration
+              run: npm run prisma:validate:appdb
 
-      - name: Run staging migrations
-        run: npm run prisma:migrate:appdb
+            - name: Run staging migrations
+              run: npm run prisma:migrate:appdb
 
-      - name: Print migration status
-        if: always()
-        run: npm run prisma:status:appdb || true
+            - name: Print migration status
+              if: always()
+              run: npm run prisma:status:appdb || true
