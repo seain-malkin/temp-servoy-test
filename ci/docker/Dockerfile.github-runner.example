@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+#
+# Example Linux GitHub Actions self-hosted runner container.
+# Intended for learning/dev use on Docker Desktop (Windows host running Linux containers).
+#
+# Build:
+#   docker build -f ci/docker/Dockerfile.github-runner.example -t gh-runner-example .
+#
+# Run:
+#   docker run --rm -it \
+#     -e GITHUB_RUNNER_URL=https://github.com/<owner>/<repo> \
+#     -e GITHUB_RUNNER_TOKEN=<registration-token> \
+#     -e RUNNER_NAME=staging-runner-local \
+#     -e RUNNER_LABELS=self-hosted,linux,staging,office-net \
+#     gh-runner-example
+
+FROM ubuntu:22.04
+
+ARG RUNNER_VERSION=latest
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      git \
+      libicu70 \
+      jq \
+      tar \
+      gzip \
+      tini \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --create-home --shell /bin/bash runner
+RUN mkdir -p /home/runner/actions-runner && chown -R runner:runner /home/runner
+
+WORKDIR /home/runner/actions-runner
+USER runner
+
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "${arch}" in \
+      amd64) runner_arch="x64" ;; \
+      arm64) runner_arch="arm64" ;; \
+      *) echo "Unsupported architecture: ${arch}" >&2; exit 1 ;; \
+    esac; \
+    if [ "${RUNNER_VERSION}" = "latest" ]; then \
+      runner_version="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed 's/^v//')"; \
+    else \
+      runner_version="${RUNNER_VERSION}"; \
+    fi; \
+    echo "Using GitHub Actions runner version ${runner_version}"; \
+    curl -fsSLo actions-runner.tar.gz "https://github.com/actions/runner/releases/download/v${runner_version}/actions-runner-linux-${runner_arch}-${runner_version}.tar.gz"; \
+    tar -xzf actions-runner.tar.gz; \
+    rm actions-runner.tar.gz
+
+USER root
+RUN /home/runner/actions-runner/bin/installdependencies.sh
+COPY ci/docker/entrypoint.github-runner.example.sh /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
+USER runner
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
