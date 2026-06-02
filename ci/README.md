@@ -107,3 +107,34 @@ Optional parameters:
 ```powershell
 ./ci/docker/run-github-runner-local.ps1 -EnvFile "ci/docker/.env.runner.local" -Image "gh-runner-example"
 ```
+
+By default the runner script joins Docker network `staging-net` (creates it if missing). Use the same network for local dependency containers.
+
+## Optional: local staging MySQL mock container
+
+For local testing when the real staging DB host is unavailable:
+
+- `ci/docker/Dockerfile.staging-mysql-mock.example`
+- `ci/docker/init-staging-mysql-mock.sql.example`
+- `ci/docker/run-staging-mysql-mock-local.ps1`
+
+Build and run:
+
+```powershell
+docker build -f ci/docker/Dockerfile.staging-mysql-mock.example -t staging-mysql-mock .
+docker run --rm -d --name staging-mysql-mock -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=appdb -e MYSQL_USER=appuser -e MYSQL_PASSWORD=appsecret staging-mysql-mock
+```
+
+Or use the helper script:
+
+```powershell
+./ci/docker/run-staging-mysql-mock-local.ps1
+```
+
+The helper script also joins Docker network `staging-net` (creates it if missing), so the runner container can resolve the DB by container name.
+
+Example URL for workflow secrets:
+
+```text
+mysql://appuser:appsecret@staging-mysql-mock:3306/appdb
+```

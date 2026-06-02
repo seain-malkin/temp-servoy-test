@@ -1,6 +1,8 @@
 param(
     [string]$EnvFile = "ci/docker/.env.runner.local",
-    [string]$Image = "gh-runner-example"
+    [string]$Image = "gh-runner-example",
+    [string]$NetworkName = "staging-net",
+    [switch]$SkipEnsureNetwork
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,6 +32,14 @@ if (-not $env:GITHUB_RUNNER_URL) {
     throw "GITHUB_RUNNER_URL must be set in $EnvFile"
 }
 
+if (-not $SkipEnsureNetwork) {
+    $networkExists = docker network ls --filter "name=^${NetworkName}$" --format "{{.Name}}"
+    if (-not $networkExists) {
+        Write-Host "Creating Docker network '$NetworkName' ..."
+        docker network create $NetworkName | Out-Null
+    }
+}
+
 docker image inspect $Image *> $null
 if ($LASTEXITCODE -ne 0) {
     throw "Docker image '$Image' not found. Build it first."
@@ -56,6 +66,7 @@ if (-not $token) {
 
 Write-Host "Starting runner container using $EnvFile ..."
 docker run --rm -it `
+  --network $NetworkName `
   --env-file $EnvFile `
   -e "GITHUB_RUNNER_TOKEN=$token" `
   $Image

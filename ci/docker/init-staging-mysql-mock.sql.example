@@ -1,0 +1,6 @@
+CREATE DATABASE IF NOT EXISTS repository_server;
+
+CREATE USER IF NOT EXISTS 'repository_user'@'%' IDENTIFIED BY 'repository_secret';
+GRANT ALL PRIVILEGES ON repository_server.* TO 'repository_user'@'%';
+
+FLUSH PRIVILEGES;
