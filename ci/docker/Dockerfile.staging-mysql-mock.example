@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+#
+# Example MySQL container to mimic a staging DB host for local testing.
+#
+# Build:
+#   docker build -f ci/docker/Dockerfile.staging-mysql-mock.example -t staging-mysql-mock .
+#
+# Run:
+#   docker run --rm -d --name staging-mysql-mock \
+#     -p 3306:3306 \
+#     -e MYSQL_ROOT_PASSWORD=root \
+#     -e MYSQL_DATABASE=appdb \
+#     -e MYSQL_USER=appuser \
+#     -e MYSQL_PASSWORD=appsecret \
+#     staging-mysql-mock
+#
+# Connection string example:
+#   mysql://appuser:appsecret@127.0.0.1:3306/appdb
+
+FROM mysql:8.4
+
+COPY ci/docker/init-staging-mysql-mock.sql.example /docker-entrypoint-initdb.d/01-init.sql
+
+EXPOSE 3306
+
+HEALTHCHECK --interval=5s --timeout=5s --retries=30 \
+  CMD mysqladmin ping -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent
