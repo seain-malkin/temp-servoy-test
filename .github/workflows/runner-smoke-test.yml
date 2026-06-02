@@ -41,16 +41,7 @@ jobs:
 
           if [ -z "$host" ] || [ -z "$port" ]; then
             if [ -n "${STAGING_DB_URL:-}" ]; then
-              parsed="$(python3 - <<'PY'
-import os
-from urllib.parse import urlparse
-url = os.environ.get("STAGING_DB_URL", "")
-p = urlparse(url)
-host = p.hostname or ""
-port = p.port or 3306
-print(f"{host}|{port}")
-PY
-)"
+              parsed="$(node -e "const u=new URL(process.env.STAGING_DB_URL); console.log(`${u.hostname}|${u.port ? Number(u.port) : 3306}`)")"
               host="${parsed%%|*}"
               port="${parsed##*|}"
             fi
