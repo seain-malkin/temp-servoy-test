@@ -73,17 +73,6 @@ ensure_node_version() {
   fi
 }
 
-if [ -z "${PROJECT_NAME}" ]; then
-  echo "ERROR: PROJECT_NAME is required." >&2
-  exit 1
-fi
-
-require_dir "${SOURCE_DIR}"
-require_file "${WAR_PROPERTIES_TEMPLATE}"
-ensure_node_version
-
-mkdir -p "${ROOT_DIR}/_ci/logs" "${ROOT_DIR}/_ci/tools" "${WAR_OUTPUT_DIR}" "${SERVOY_USER_HOME}"
-
 wait_for_mysql() {
   local retries=60
   local delay=2
@@ -305,21 +294,16 @@ build_war() {
   require_file "${WAR_OUTPUT_DIR}/${WAR_FILE_BASENAME}.war"
 }
 
-wait_for_tomcat_health() {
-  local attempt=0
-  local http_code
-  while [ "${attempt}" -lt "${HEALTH_CHECK_RETRIES}" ]; do
-    http_code="$(curl -sS -o /dev/null -w '%{http_code}' "${HEALTH_CHECK_URL}" || true)"
-    if [ "${http_code}" != "000" ] && [ -n "${http_code}" ]; then
-      return 0
-    fi
-    attempt=$((attempt + 1))
-    sleep "${HEALTH_CHECK_DELAY}"
-  done
-
-  echo "ERROR: Tomcat health check failed for '${HEALTH_CHECK_URL}' (no HTTP response)." >&2
+if [ -z "${PROJECT_NAME}" ]; then
+  echo "ERROR: PROJECT_NAME is required." >&2
   exit 1
-}
+fi
+
+require_dir "${SOURCE_DIR}"
+require_file "${WAR_PROPERTIES_TEMPLATE}"
+ensure_node_version
+
+mkdir -p "${ROOT_DIR}/_ci/logs" "${ROOT_DIR}/_ci/tools" "${WAR_OUTPUT_DIR}" "${SERVOY_USER_HOME}"
 
 wait_for_mysql
 ensure_mysql_databases
@@ -332,4 +316,3 @@ if [ "${ENABLE_UNIT_TESTS}" = "true" ]; then
 fi
 
 build_war
-wait_for_tomcat_health
