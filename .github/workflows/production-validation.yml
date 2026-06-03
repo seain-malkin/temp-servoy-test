@@ -1,35 +1,35 @@
 name: Production validation
 
 on:
-  workflow_dispatch:
-    inputs:
-      servoy_release_tag:
-        description: Servoy release tag to validate (required for immutable production runs).
-        required: true
-        type: string
-      run_unit_tests:
-        description: Run servoy_unit_tests during production validation.
-        required: false
-        type: boolean
-        default: true
+    workflow_dispatch:
+        inputs:
+            servoy_release_tag:
+                description: Servoy release tag to validate (required for immutable production runs).
+                required: true
+                type: string
+            run_unit_tests:
+                description: Run servoy_unit_tests during production validation.
+                required: false
+                type: boolean
+                default: true
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: production-validation-main
-  cancel-in-progress: false
+    group: production-validation-main
+    cancel-in-progress: false
 
 jobs:
-  servoy-production-validation:
-    if: ${{ github.ref == 'refs/heads/main' }}
-    uses: ./.github/workflows/reusable-servoy-ci.yml
-    with:
-      project_name: ${{ vars.PRODUCTION_PROJECT_NAME || 'servoy_test' }}
-      unit_test_solution: ${{ vars.PRODUCTION_UNIT_TEST_SOLUTION || 'servoy_unit_tests' }}
-      enable_unit_tests: ${{ github.event.inputs.run_unit_tests != 'false' }}
-      servoy_assets_repo: ${{ vars.SERVOY_ASSETS_REPO_PRODUCTION || vars.SERVOY_ASSETS_REPO }}
-      servoy_release_tag: ${{ github.event.inputs.servoy_release_tag }}
-      artifact_name: production-validation-logs
-    secrets:
-      servoy_asset_token: ${{ secrets.SERVOY_ASSET_TOKEN }}
+    servoy-production-validation:
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: ./.github/workflows/reusable-servoy-ci.yml
+        with:
+            project_name: ${{ vars.PRODUCTION_PROJECT_NAME || 'servoy_test' }}
+            unit_test_solution: ${{ vars.PRODUCTION_UNIT_TEST_SOLUTION || 'servoy_unit_tests' }}
+            enable_unit_tests: ${{ github.event.inputs.run_unit_tests != 'false' }}
+            servoy_assets_repo: ${{ vars.SERVOY_ASSETS_REPO_PRODUCTION || vars.SERVOY_ASSETS_REPO }}
+            servoy_release_tag: ${{ github.event.inputs.servoy_release_tag }}
+            artifact_name: production-validation-logs
+        secrets:
+            servoy_asset_token: ${{ secrets.SERVOY_ASSET_TOKEN }}

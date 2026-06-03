@@ -1,56 +1,56 @@
 name: Runner smoke test
 
 on:
-  workflow_dispatch:
+    workflow_dispatch:
 
 permissions:
-  contents: read
+    contents: read
 
 jobs:
-  smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on:
-      - self-hosted
-      - staging
-      - office-net
-    timeout-minutes: 10
-    steps:
-      - name: Show runner details
-        run: |
-          echo "Runner name: $RUNNER_NAME"
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner arch: $RUNNER_ARCH"
-          echo "Workspace: $GITHUB_WORKSPACE"
+    smoke:
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        runs-on:
+            - self-hosted
+            - staging
+            - office-net
+        timeout-minutes: 10
+        steps:
+            - name: Show runner details
+              run: |
+                  echo "Runner name: $RUNNER_NAME"
+                  echo "Runner OS: $RUNNER_OS"
+                  echo "Runner arch: $RUNNER_ARCH"
+                  echo "Workspace: $GITHUB_WORKSPACE"
 
-      - name: Execute simple commands
-        run: |
-          date -u
-          whoami
-          uname -a
-          echo "Self-hosted runner is working."
+            - name: Execute simple commands
+              run: |
+                  date -u
+                  whoami
+                  uname -a
+                  echo "Self-hosted runner is working."
 
-      - name: Test DB TCP reachability
-        env:
-          STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
-          STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
-          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
-        run: |
-          set -euo pipefail
-          host="${STAGING_DB_HOST:-}"
-          port="${STAGING_DB_PORT:-}"
+            - name: Test DB TCP reachability
+              env:
+                  STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+                  STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+                  STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+              run: |
+                  set -euo pipefail
+                  host="${STAGING_DB_HOST:-}"
+                  port="${STAGING_DB_PORT:-}"
 
-          if [ -z "$host" ] || [ -z "$port" ]; then
-            if [ -n "${STAGING_DB_URL:-}" ]; then
-              parsed="$(node -e "const u=new URL(process.env.STAGING_DB_URL); console.log(`${u.hostname}|${u.port ? Number(u.port) : 3306}`)")"
-              host="${parsed%%|*}"
-              port="${parsed##*|}"
-            fi
-          fi
+                  if [ -z "$host" ] || [ -z "$port" ]; then
+                    if [ -n "${STAGING_DB_URL:-}" ]; then
+                      parsed="$(node -e "const u=new URL(process.env.STAGING_DB_URL); console.log(`${u.hostname}|${u.port ? Number(u.port) : 3306}`)")"
+                      host="${parsed%%|*}"
+                      port="${parsed##*|}"
+                    fi
+                  fi
 
-          if [ -z "$host" ] || [ -z "$port" ]; then
-            echo "Set STAGING_DB_HOST/STAGING_DB_PORT, or STAGING_DB_URL." >&2
-            exit 1
-          fi
+                  if [ -z "$host" ] || [ -z "$port" ]; then
+                    echo "Set STAGING_DB_HOST/STAGING_DB_PORT, or STAGING_DB_URL." >&2
+                    exit 1
+                  fi
 
-          timeout 5 bash -c ">/dev/tcp/${host}/${port}"
-          echo "DB TCP reachable from runner at ${host}:${port}"
+                  timeout 5 bash -c ">/dev/tcp/${host}/${port}"
+                  echo "DB TCP reachable from runner at ${host}:${port}"
