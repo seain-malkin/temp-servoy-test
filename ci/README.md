@@ -33,6 +33,15 @@ If omitted, staging falls back to:
 - `servoy_test`
 - `servoy_unit_tests`
 
+## Database bootstrap toggle
+
+`ci/scripts/run-servoy-ci.sh` defaults to creating MySQL databases/users inside the CI MySQL container.
+For staging/production runs that target external databases, set:
+
+```text
+ENABLE_DB_BOOTSTRAP=false
+```
+
 ## Optional production overrides
 
 These variables are optional and only used by `production-validation.yml`:

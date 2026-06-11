@@ -17,6 +17,7 @@ HEALTH_CHECK_URL="${HEALTH_CHECK_URL:-http://127.0.0.1:8080/}"
 HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-60}"
 HEALTH_CHECK_DELAY="${HEALTH_CHECK_DELAY:-5}"
 ENABLE_UNIT_TESTS="${ENABLE_UNIT_TESTS:-true}"
+ENABLE_DB_BOOTSTRAP="${ENABLE_DB_BOOTSTRAP:-true}"
 UNIT_TEST_SOLUTION="${UNIT_TEST_SOLUTION:-servoy_unit_tests}"
 UNIT_TEST_EXPORT_DIR="${UNIT_TEST_EXPORT_DIR:-${ROOT_DIR}/_ci/exportedSolutions}"
 UNIT_TEST_TIMEOUT_SECONDS="${UNIT_TEST_TIMEOUT_SECONDS:-300}"
@@ -305,8 +306,12 @@ ensure_node_version
 
 mkdir -p "${ROOT_DIR}/_ci/logs" "${ROOT_DIR}/_ci/tools" "${WAR_OUTPUT_DIR}" "${SERVOY_USER_HOME}"
 
-wait_for_mysql
-ensure_mysql_databases
+if [ "${ENABLE_DB_BOOTSTRAP}" = "true" ]; then
+  wait_for_mysql
+  ensure_mysql_databases
+else
+  echo "INFO: Skipping MySQL bootstrap; assuming external database connectivity."
+fi
 extract_servoy
 render_servoy_properties
 run_prisma_migrations
